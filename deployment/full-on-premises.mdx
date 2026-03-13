@@ -17,18 +17,22 @@ A full deployment consists of three infrastructure components:
 
 ```mermaid
 graph TD
-    Users([Users]) --> Frontend
+    Users([Users]) --> Caddy
 
     subgraph VM[Linux VM]
+        Caddy[Caddy Reverse Proxy]
         Frontend[Frontend]
         Backend[Backend API]
-        Collector[Collector]
+        Collector[Collector\nGit, Issues, LLM]
+        Caddy --> Frontend
+        Caddy -->|/api/*| Backend
         Frontend --> Backend
     end
 
     Backend --> PostgreSQL[(PostgreSQL + pgvector)]
+    Backend --> LLM[LLM API Endpoint]
     Collector --> Backend
-    Collector --> LLM[LLM API Endpoint]
+    Collector --> LLM
 ```
 
 ## Prerequisites
@@ -63,8 +67,8 @@ Navigara requires an OpenAI-compatible API endpoint for AI-powered commit analys
 | Provider | Model | Notes |
 |----------|-------|-------|
 | **Google Vertex AI** | Gemini 2.5 Flash | Recommended — best cost/performance ratio |
-| **Anthropic** | Claude Sonnet 4 | High quality analysis |
-| **OpenAI** | GPT-4o | Widely available |
+| **Anthropic** | Claude Sonnet 4.6 | High quality analysis |
+| **OpenAI** | GPT-5.4 | Widely available |
 
 The endpoint must be reachable from the VM. For air-gapped environments, a locally hosted model with an OpenAI-compatible API (e.g. vLLM, Ollama) can be used — contact support for guidance.
 
@@ -134,50 +138,209 @@ sudo apt-get install docker-compose-plugin
 docker compose version
 ```
 
-### 2. Configure the deployment
+### 2. Authenticate with the container registry
 
-Create a directory for the Navigara deployment and download the Docker Compose configuration:
+Navigara images are hosted on Google Artifact Registry. During onboarding, you will receive a service account key file (`navigara-registry-key.json`) that grants read access to the container images.
 
 ```bash
-mkdir -p /opt/navigara && cd /opt/navigara
+# Install gcloud CLI (if not already installed)
+curl https://sdk.cloud.google.com | bash
+exec -l $SHELL
+
+# Authenticate with the service account
+gcloud auth activate-service-account --key-file=navigara-registry-key.json
+
+# Configure Docker to use gcloud credentials for Artifact Registry
+gcloud auth configure-docker europe-west1-docker.pkg.dev --quiet
+```
+
+Verify you can pull images:
+
+```bash
+docker pull europe-west1-docker.pkg.dev/navigara-images/prod/vision-be:1.0.0
+```
+
+<Note>
+  If your organization mirrors images to an internal registry, pull the three Navigara images and push them to your registry, then override the image paths via `BACKEND_IMAGE`, `COLLECTOR_IMAGE`, and `FRONTEND_IMAGE` in your `.env` file.
+</Note>
+
+### 3. Configure the deployment
+
+Create the deployment directory structure:
+
+```bash
+mkdir -p /opt/navigara/deployment/caddy && cd /opt/navigara
+```
+
+Create `docker-compose.yml`:
+
+```yaml
+services:
+  backend:
+    image: ${BACKEND_IMAGE:-europe-west1-docker.pkg.dev/navigara-images/prod/vision-be:${NAVIGARA_VERSION}}
+    container_name: navigara-backend
+    init: true
+    env_file:
+      - .env
+    environment:
+      DATABASE_MAX_CONNS: ${DATABASE_MAX_CONNS:-10}
+      DATABASE_MIN_CONNS: ${DATABASE_MIN_CONNS:-2}
+      GRPC_PORT: ${GRPC_PORT:-9090}
+      HTTP_PORT: ${HTTP_PORT:-8080}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LLM_PROVIDER: ${LLM_PROVIDER:-openai}
+      LLM_MODEL: ${LLM_MODEL:-gpt-5.4}
+      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-8192}
+      MIGRATIONS_PATH: ${MIGRATIONS_PATH:-db/migrations}
+      ENABLE_AGENTS: ${ENABLE_AGENTS:-true}
+      COLLECTOR_API_KEY: ${COLLECTOR_API_KEY:-navigara-collector-key}
+      FRONTEND_URL: ${FRONTEND_URL:-http://frontend:3000}
+    ports:
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:9090:9090"
+    restart: unless-stopped
+    networks:
+      - navigara-network
+
+  collector:
+    image: ${COLLECTOR_IMAGE:-europe-west1-docker.pkg.dev/navigara-images/prod/vision-collector:${NAVIGARA_VERSION}}
+    container_name: navigara-collector
+    init: true
+    env_file:
+      - .env
+    environment:
+      SERVER_ADDR: backend:9090
+      COLLECTOR_ID: ${COLLECTOR_ID:-collector-1}
+      COLLECTOR_API_KEY: ${COLLECTOR_API_KEY:-navigara-collector-key}
+      MAX_WORKERS: ${COLLECTOR_MAX_WORKERS:-10}
+      LLM_PROVIDER: ${LLM_PROVIDER:-openai}
+      LLM_MODEL: ${LLM_MODEL:-gpt-5.4}
+      WORK_DIR: /tmp/git-analysis
+    depends_on:
+      backend:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - navigara-network
+
+  frontend:
+    image: ${FRONTEND_IMAGE:-europe-west1-docker.pkg.dev/navigara-images/prod/vision-fe:${NAVIGARA_VERSION}}
+    container_name: navigara-frontend
+    env_file:
+      - .env
+    environment:
+      BACKEND_API_URL: ${BACKEND_API_URL:-http://backend:8080}
+      NODE_ENV: ${NODE_ENV:-production}
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - navigara-network
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: navigara-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deployment/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+    restart: unless-stopped
+    networks:
+      - navigara-network
+
+volumes:
+  caddy_data:
+    name: navigara-caddy-data
+  caddy_config:
+    name: navigara-caddy-config
+
+networks:
+  navigara-network:
+    name: navigara-network
+    driver: bridge
 ```
 
 Create a `.env` file with your configuration:
 
 ```bash
+# Version
+NAVIGARA_VERSION=1.0.0
+
+# Container images (override to use your own registry)
+# BACKEND_IMAGE=your-registry.example.com/navigara/vision-be:${NAVIGARA_VERSION}
+# COLLECTOR_IMAGE=your-registry.example.com/navigara/vision-collector:${NAVIGARA_VERSION}
+# FRONTEND_IMAGE=your-registry.example.com/navigara/vision-fe:${NAVIGARA_VERSION}
+
 # Database
 DATABASE_URL=postgresql://navigara:<password>@<postgres-host>:5432/navigara?sslmode=require
 
 # LLM Configuration
-LLM_PROVIDER=openai          # openai | genai | anthropic
-LLM_MODEL=gpt-4o             # Model name for your provider
-LLM_API_KEY=<your-api-key>   # API key for the LLM provider
-LLM_API_URL=                  # Custom endpoint URL (optional, for self-hosted models)
+LLM_PROVIDER=openai               # openai | genai | anthropic
+LLM_MODEL=gpt-5.4                 # Model name for your provider
+LLM_API_KEY=<your-api-key>        # API key for the LLM provider
+LLM_API_URL=                       # Custom endpoint URL (optional, for self-hosted models)
 
 # Application
 DOMAIN=navigara.yourcompany.com
-GRPC_PORT=9090
-HTTP_PORT=8080
 
 # Collector
 ENABLE_AGENTS=true
+COLLECTOR_API_KEY=<generate-a-random-key>
 ```
 
-### 3. Configure PostgreSQL
+### 4. Configure PostgreSQL
 
-Connect to your PostgreSQL instance and create the database:
+Connect to your PostgreSQL instance as a superuser and run the following:
 
 ```sql
+-- Create database and application user
 CREATE DATABASE navigara;
+CREATE USER navigara WITH PASSWORD '<strong-password>';
+
+-- Connect to the navigara database
 \c navigara
+
+-- Enable required extensions
 CREATE EXTENSION IF NOT EXISTS vector;
+
+-- Grant permissions to the application user
+GRANT CONNECT, CREATE, TEMPORARY ON DATABASE navigara TO navigara;
+GRANT CREATE, USAGE ON SCHEMA public TO navigara;
+GRANT SELECT, INSERT, UPDATE, DELETE, REFERENCES, TRIGGER, TRUNCATE ON ALL TABLES IN SCHEMA public TO navigara;
+GRANT SELECT, UPDATE, USAGE ON ALL SEQUENCES IN SCHEMA public TO navigara;
+ALTER DEFAULT PRIVILEGES FOR ROLE navigara IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE, REFERENCES, TRIGGER, TRUNCATE ON TABLES TO navigara;
+ALTER DEFAULT PRIVILEGES FOR ROLE navigara IN SCHEMA public GRANT SELECT, UPDATE, USAGE ON SEQUENCES TO navigara;
+```
+
+Then set `DATABASE_URL` in your `.env` to use the `navigara` user:
+
+```bash
+DATABASE_URL=postgresql://navigara:<password>@<postgres-host>:5432/navigara?sslmode=require
 ```
 
 Navigara runs database migrations automatically on startup — no manual schema setup is needed.
 
-### 4. Start Navigara
+### 5. Start Navigara
 
 ```bash
+# Pull the latest images
+docker compose pull
+
+# Start all services
 docker compose up -d
 ```
 
@@ -187,26 +350,55 @@ Verify all services are running:
 docker compose ps
 ```
 
-### 5. Access the application
+### 6. Access the application
 
 Open `https://navigara.yourcompany.com` in your browser. The first user to sign up becomes the organization owner.
 
-## TLS / Certificates
+## Reverse Proxy (Caddy)
 
-For production deployments, TLS termination should be configured at the reverse proxy level. Navigara supports being placed behind:
+Navigara ships with [Caddy](https://caddyserver.com) as the reverse proxy. Caddy handles TLS termination, automatic certificate provisioning via Let's Encrypt, and routing between frontend, backend API, and gRPC services.
 
-- **Nginx** or **Caddy** as a reverse proxy
-- **Cloud load balancers** (ALB, Cloud Load Balancing, Azure Application Gateway)
-
-Example Caddy configuration:
+Create the Caddyfile at `deployment/caddy/Caddyfile`:
 
 ```
 navigara.yourcompany.com {
-    reverse_proxy localhost:3000
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Frame-Options "SAMEORIGIN"
+        X-Content-Type-Options "nosniff"
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+
+    handle_path /api/* {
+        encode gzip
+
+        header {
+            Access-Control-Allow-Origin "https://navigara.yourcompany.com"
+            Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+            Access-Control-Allow-Headers "Authorization, Content-Type, X-Api-Key"
+            Access-Control-Max-Age "86400"
+        }
+
+        @options method OPTIONS
+        respond @options 204
+
+        reverse_proxy backend:8080
+    }
+
+    handle {
+        encode gzip
+        reverse_proxy frontend:3000
+    }
+
+    log {
+        output stdout
+        format json
+    }
 }
 ```
 
-Caddy automatically provisions and renews TLS certificates via Let's Encrypt.
+Caddy automatically provisions and renews TLS certificates via Let's Encrypt. No manual certificate management is required.
 
 ## Backup and Restore
 
@@ -230,12 +422,13 @@ pg_restore -h <postgres-host> -U navigara -d navigara --clean navigara_backup.du
 
 ## Monitoring and Health Checks
 
-Navigara exposes health check endpoints:
+The backend exposes a health check endpoint on the HTTP port:
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /healthz` | Application health |
-| `GET /readyz` | Readiness (database connectivity) |
+| `GET /health` | Application and database health (returns gRPC health status) |
+
+The frontend container also has a built-in health check via `wget` on port 3000.
 
 Use these with your monitoring system (Prometheus, Datadog, etc.) to track service availability.
 
