@@ -3,9 +3,9 @@
   "theme": "mint",
   "name": "Navigara Documentation",
   "colors": {
-    "primary": "#0C8C5E",
-    "light": "#18E299",
-    "dark": "#0C8C5E"
+    "primary": "#4338CA",
+    "light": "#6366F1",
+    "dark": "#4338CA"
   },
   "favicon": "/favicon.svg",
   "navigation": {
