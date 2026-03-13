@@ -192,7 +192,7 @@ services:
       LLM_MODEL: ${LLM_MODEL:-gpt-5.4}
       LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-8192}
       MIGRATIONS_PATH: ${MIGRATIONS_PATH:-db/migrations}
-      ENABLE_AGENTS: ${ENABLE_AGENTS:-true}
+
       COLLECTOR_API_KEY: ${COLLECTOR_API_KEY:-navigara-collector-key}
       FRONTEND_URL: ${FRONTEND_URL:-http://frontend:3000}
     ports:
@@ -298,7 +298,6 @@ LLM_API_URL=                       # Custom endpoint URL (optional, for self-hos
 DOMAIN=navigara.yourcompany.com
 
 # Collector
-ENABLE_AGENTS=true
 COLLECTOR_API_KEY=<generate-a-random-key>
 ```
 
