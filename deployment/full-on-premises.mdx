@@ -157,8 +157,10 @@ gcloud auth configure-docker europe-west1-docker.pkg.dev --quiet
 Verify you can pull images:
 
 ```bash
-docker pull europe-west1-docker.pkg.dev/navigara-images/prod/vision-be:1.0.0
+docker pull europe-west1-docker.pkg.dev/navigara-images/prod/vision-be:<version>
 ```
+
+Replace `<version>` with the version provided to you during onboarding.
 
 <Note>
   If your organization mirrors images to an internal registry, pull the three Navigara images and push them to your registry, then override the image paths via `BACKEND_IMAGE`, `COLLECTOR_IMAGE`, and `FRONTEND_IMAGE` in your `.env` file.
