@@ -67,7 +67,7 @@ Install the [Navigara GitHub App](https://github.com/apps/navigara) on your GitH
 - Works with both GitHub.com and GitHub Enterprise
 
 <Info>
-  This is the recommended approach for GitHub users. The GitHub App also enables webhook-driven analysis for near real-time processing of new commits.
+  This is the recommended approach for GitHub users.
 </Info>
 
 ### Option 2: Personal Access Token (All Providers)
@@ -226,8 +226,8 @@ NAVIGARA_VERSION=1.0.0
 # Collector authentication (generate in Navigara dashboard → Settings → API Keys)
 COLLECTOR_API_KEY=<your-collector-api-key>
 
-# Collector identity (unique name for this collector instance)
-COLLECTOR_ID=collector-1
+# Collector identity (optional — defaults to container hostname if not set)
+# COLLECTOR_ID=collector-1
 
 # LLM Configuration
 LLM_PROVIDER=openai               # openai | genai | anthropic
@@ -282,7 +282,7 @@ Once the collector is running, add repositories through the Navigara dashboard:
 | `SERVER_ADDR` | `app.navigara.com:443` | Navigara API gRPC address |
 | `COLLECTOR_TLS` | `true` | Enable TLS for gRPC connection |
 | `COLLECTOR_API_KEY` | — | API key generated in Settings → API Keys (required) |
-| `COLLECTOR_ID` | `collector-1` | Unique identifier for this collector |
+| `COLLECTOR_ID` | hostname | Unique identifier for this collector (defaults to container hostname) |
 | `MAX_WORKERS` | `10` | Number of concurrent commit analysis workers |
 | `LLM_PROVIDER` | `openai` | LLM provider: `openai`, `genai`, or `anthropic` |
 | `LLM_MODEL` | `gpt-5.4` | Model name |
