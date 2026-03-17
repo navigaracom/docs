@@ -202,7 +202,7 @@ COLLECTOR_API_TOKEN=<your-collector-api-token>
 # COLLECTOR_ID=collector-1
 
 # LLM Configuration (OpenAI-compatible APIs only — see "LLM Configuration" section below for Vertex AI)
-LLM_PROVIDER=openai               # openai | anthropic
+LLM_PROVIDER=openai               # openai
 LLM_MODEL=gpt-5.4                 # Model name for your provider
 LLM_API_KEY=<your-llm-api-key>    # API key for the LLM provider
 LLM_API_URL=                       # Custom endpoint URL (optional, for self-hosted models)
@@ -222,7 +222,6 @@ Navigara requires an LLM API endpoint for AI-powered commit analysis. Supported 
 | Provider | Model | Notes |
 |----------|-------|-------|
 | **Google Vertex AI** | Gemini 2.5 Flash | Recommended — best cost/performance ratio |
-| **Anthropic** | Claude Sonnet 4.6 | High quality analysis |
 | **OpenAI** | GPT-5.4 | Widely available |
 
 <Tabs>
@@ -278,13 +277,6 @@ Navigara requires an LLM API endpoint for AI-powered commit analysis. Supported 
     LLM_API_KEY=<your-openai-api-key>
     ```
   </Tab>
-  <Tab title="Anthropic">
-    ```bash
-    LLM_PROVIDER=anthropic
-    LLM_MODEL=claude-sonnet-4-6-20250514
-    LLM_API_KEY=<your-anthropic-api-key>
-    ```
-  </Tab>
   <Tab title="Self-hosted (OpenAI-compatible)">
     Any model served behind an OpenAI-compatible API (e.g., vLLM, Ollama) can be used:
 
@@ -334,7 +326,7 @@ Once the collector is running, add repositories through the Navigara dashboard:
 | `COLLECTOR_API_TOKEN` | — | API token generated in Settings → API Tokens (required) |
 | `COLLECTOR_ID` | hostname | Unique identifier for this collector (defaults to container hostname) |
 | `MAX_WORKERS` | `10` | Number of concurrent commit analysis workers |
-| `LLM_PROVIDER` | `openai` | LLM provider: `openai`, `genai`, or `anthropic` |
+| `LLM_PROVIDER` | `openai` | LLM provider: `openai` or `genai` |
 | `LLM_MODEL` | `gpt-5.4` | Model name |
 | `LLM_API_KEY` | — | API key for the LLM provider |
 | `LLM_API_URL` | — | Custom LLM endpoint (for self-hosted models) |
@@ -380,7 +372,7 @@ The collector host must have outbound access to the following services:
 |---------|---------|----------|
 | **Navigara API** | Work assignment and result streaming | `app.navigara.com:443` |
 | **Git provider** | Repository cloning and fetching | `github.com`, `gitlab.com`, or your self-hosted instance |
-| **LLM API** | AI-powered commit analysis | `api.openai.com`, `api.anthropic.com`, or Vertex AI endpoints |
+| **LLM API** | AI-powered commit analysis | `api.openai.com` or Vertex AI endpoints |
 
 <Warning>
   No inbound ports need to be opened. The collector initiates all connections outbound.
