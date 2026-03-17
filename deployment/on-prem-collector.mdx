@@ -241,38 +241,17 @@ Navigara requires an LLM API endpoint for AI-powered commit analysis. Supported 
 
     **2. Download the service account key file** (e.g., `vertex-ai-key.json`) and place it on the host.
 
-    **3. Authenticate with the service account:**
-
-    ```bash
-    # Install gcloud CLI (if not already installed)
-    curl https://sdk.cloud.google.com | bash
-    exec -l $SHELL
-
-    # Authenticate with your service account
-    gcloud auth activate-service-account --key-file=vertex-ai-key.json
-
-    # Set the default project
-    gcloud config set project <your-gcp-project>
-    ```
-
-    Alternatively, mount the key file into the container and set the `GOOGLE_APPLICATION_CREDENTIALS` environment variable.
-
-    **4. Set the following in your `.env` file:**
+    **3. Set the following in your `.env` file:**
 
     ```bash
     LLM_PROVIDER=genai
     LLM_MODEL=gemini-2.5-flash
     GOOGLE_PROJECT=<your-gcp-project>
     GOOGLE_LOCATION=global
-
-    # Option A: Host-level gcloud auth (if you ran gcloud auth above)
-    # No additional config needed — the SDK picks up credentials automatically.
-
-    # Option B: Service account key file mounted into the container
-    # GOOGLE_APPLICATION_CREDENTIALS=/etc/navigara/vertex-ai-key.json
+    GOOGLE_APPLICATION_CREDENTIALS=/etc/navigara/vertex-ai-key.json
     ```
 
-    If using Option B, add a volume mount in your `docker-compose.yml`:
+    **4. Mount the key file** in your `docker-compose.yml`:
 
     ```yaml
     volumes:
