@@ -163,7 +163,7 @@ Create `docker-compose.yml`:
 ```yaml
 services:
   collector:
-    image: ${COLLECTOR_IMAGE:-europe-west1-docker.pkg.dev/navigara-images/public/vision-collector:${NAVIGARA_VERSION}}
+    image: ${COLLECTOR_IMAGE:-europe-docker.pkg.dev/navigara-images/public/vision-collector:${NAVIGARA_VERSION}}
     container_name: navigara-collector
     init: true
     env_file:
@@ -344,7 +344,7 @@ You can run multiple collector instances for higher throughput or geographic dis
 # docker-compose.yml with two collectors
 services:
   collector-1:
-    image: europe-west1-docker.pkg.dev/navigara-images/public/vision-collector:${NAVIGARA_VERSION}
+    image: europe-docker.pkg.dev/navigara-images/public/vision-collector:${NAVIGARA_VERSION}
     container_name: navigara-collector-1
     init: true
     env_file: .env
@@ -354,7 +354,7 @@ services:
     restart: unless-stopped
 
   collector-2:
-    image: europe-west1-docker.pkg.dev/navigara-images/public/vision-collector:${NAVIGARA_VERSION}
+    image: europe-docker.pkg.dev/navigara-images/public/vision-collector:${NAVIGARA_VERSION}
     container_name: navigara-collector-2
     init: true
     env_file: .env
