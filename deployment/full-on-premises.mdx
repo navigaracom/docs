@@ -217,7 +217,7 @@ Create `docker-compose.yml`:
 ```yaml
 services:
   backend:
-    image: ${BACKEND_IMAGE:-europe-docker.pkg.dev/navigara-images/public/vision-be:${NAVIGARA_VERSION}}
+    image: ${BACKEND_IMAGE:-europe-west1-docker.pkg.dev/navigara-images/public/vision-be:${NAVIGARA_VERSION}}
     container_name: navigara-backend
     init: true
     env_file:
@@ -242,7 +242,7 @@ services:
       - navigara-network
 
   collector:
-    image: ${COLLECTOR_IMAGE:-europe-docker.pkg.dev/navigara-images/public/vision-collector:${NAVIGARA_VERSION}}
+    image: ${COLLECTOR_IMAGE:-europe-west1-docker.pkg.dev/navigara-images/public/vision-collector:${NAVIGARA_VERSION}}
     container_name: navigara-collector
     init: true
     env_file:
@@ -263,7 +263,7 @@ services:
       - navigara-network
 
   frontend:
-    image: ${FRONTEND_IMAGE:-europe-docker.pkg.dev/navigara-images/public/vision-fe:${NAVIGARA_VERSION}}
+    image: ${FRONTEND_IMAGE:-europe-west1-docker.pkg.dev/navigara-images/public/vision-fe:${NAVIGARA_VERSION}}
     container_name: navigara-frontend
     env_file:
       - .env
