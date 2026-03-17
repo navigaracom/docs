@@ -237,6 +237,9 @@ services:
     ports:
       - "127.0.0.1:8080:8080"
       - "127.0.0.1:9090:9090"
+    # Uncomment if using Vertex AI with a service account key file
+    # volumes:
+    #   - ./vertex-ai-key.json:/etc/navigara/vertex-ai-key.json:ro
     restart: unless-stopped
     networks:
       - navigara-network
@@ -258,6 +261,9 @@ services:
     depends_on:
       backend:
         condition: service_started
+    # Uncomment if using Vertex AI with a service account key file
+    # volumes:
+    #   - ./vertex-ai-key.json:/etc/navigara/vertex-ai-key.json:ro
     restart: unless-stopped
     networks:
       - navigara-network
@@ -332,6 +338,13 @@ LLM_PROVIDER=openai               # openai | genai
 LLM_MODEL=gpt-5.4                 # Model name for your provider
 LLM_API_KEY=<your-api-key>        # API key for the LLM provider
 LLM_API_URL=                       # Custom endpoint URL (optional, for self-hosted models)
+
+# Google Vertex AI (uncomment if using genai provider)
+# LLM_PROVIDER=genai
+# LLM_MODEL=gemini-2.5-flash
+# GOOGLE_PROJECT=<your-gcp-project>
+# GOOGLE_LOCATION=global
+# GOOGLE_APPLICATION_CREDENTIALS=/etc/navigara/vertex-ai-key.json  # Required if host is not authenticated via gcloud
 
 # Application
 DOMAIN=navigara.yourcompany.com

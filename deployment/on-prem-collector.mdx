@@ -179,6 +179,8 @@ services:
       WORK_DIR: /tmp/git-analysis
     volumes:
       - collector-workdir:/tmp/git-analysis
+      # Uncomment if using Vertex AI with a service account key file
+      # - ./vertex-ai-key.json:/etc/navigara/vertex-ai-key.json:ro
     restart: unless-stopped
 
 volumes:
@@ -206,6 +208,13 @@ LLM_PROVIDER=openai               # openai
 LLM_MODEL=gpt-5.4                 # Model name for your provider
 LLM_API_KEY=<your-llm-api-key>    # API key for the LLM provider
 LLM_API_URL=                       # Custom endpoint URL (optional, for self-hosted models)
+
+# Google Vertex AI (uncomment if using genai provider)
+# LLM_PROVIDER=genai
+# LLM_MODEL=gemini-2.5-flash
+# GOOGLE_PROJECT=<your-gcp-project>
+# GOOGLE_LOCATION=global
+# GOOGLE_APPLICATION_CREDENTIALS=/etc/navigara/vertex-ai-key.json  # Required if host is not authenticated via gcloud
 
 # Git provider tokens (optional — see "Git Provider Authentication" above)
 # GITHUB_TOKEN=github_pat_xxxxxxxxxxxx
