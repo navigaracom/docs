@@ -3,21 +3,33 @@ title: "Performance"
 description: "How Navigara measures the volume and complexity of engineering work."
 ---
 
-The Performance score measures **what your team builds and how complex the work is**. It combines AI understanding of each file with mechanical code analysis to produce three scores per commit — **grow**, **maintenance**, and **waste** — that capture both the nature and the difficulty of the work.
+Navigara measures engineering output as three scores per commit: **grow**, **maintenance**, and **waste**. Each score reflects both the type of work and its complexity, computed from a combination of AI classification and deterministic code analysis. Every measurement happens at the individual file change level, not at the commit level — a single commit touching five files produces five independent scores, each with its own work type, complexity, and engagement.
 
-## How it works: AI + mechanical analysis
+## How it works
 
-Navigara uses a two-stage pipeline for every commit:
+Every commit goes through two stages.
 
-1. **AI analysis (knowledge graph)** — An LLM reads the commit message, the full diff, and the surrounding code context. For each changed file, it classifies the type of work (feature, fix, refactor), identifies the changed symbols (functions, classes, endpoints), and for bug fixes, root-causes the issue — tracing it back to the originating commit and author. These results are stored as a **knowledge graph** that connects commits, files, symbols, and issues into a queryable structure.
+**Stage 1: AI analysis.** Navigara reads the commit message, the full diff, and the surrounding code context. For each changed file, the model classifies the type of work (feature, fix, refactor), identifies the changed symbols (functions, classes, endpoints), and, for bug fixes, traces the issue back to the originating commit, recording the original author and timestamp. Results are stored in a knowledge graph connecting commits, files, symbols, and issues.
 
-2. **Mechanical scoring** — Deterministic algorithms then run over the same files to compute complexity and engagement scores. These are purely code-based — no LLM involved — so they're reproducible and consistent.
+**Stage 2: Mechanical scoring.** Deterministic algorithms compute complexity and engagement scores over the same files. No LLM is involved at this stage. Scores are reproducible and consistent across runs.
 
-The AI decides _what kind of work_ was done and _why_. The algorithms measure _how hard_ the code is. The performance score is the product of both.
+The AI determines what kind of work was done. The algorithms determine how hard the code is. The Performance score combines both.
+
+## What gets analyzed
+
+Navigara analyzes every source file modified in a commit. Not all file changes are scored — before analysis begins, the following are automatically filtered out:
+
+- **Generated code** — Protocol Buffer outputs (`.pb.go`, `_grpc.pb.go`, `.pb.ts`), GraphQL codegen (`.graphql.ts`), OpenAPI specs, and other machine-generated files (`*_generated.go`, `*.gen.go`, `zz_generated.*`).
+- **Dependency lockfiles** — `go.sum`, `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `Cargo.lock`, `Gemfile.lock`, and similar.
+- **Build artifacts** — `dist/`, `build/`, `.next/`, `vendor/`, `node_modules/`, and bundled outputs with content hashes (e.g. `main-YHGF2JUB.js`).
+- **Minified files** — detected by content heuristics when average line length exceeds 300 characters.
+- **Binary and media files** — images, fonts, PDFs, archives, compiled binaries.
+
+These files are excluded from both the AI analysis and mechanical scoring. If you see a commit with fewer scored files than total files changed, the difference is filtered files. The knowledge graph records which files were filtered and why.
 
 ## Work types
 
-The AI reads each file's diff and classifies it into one of three work types:
+The AI classifies each file change into one of three work types:
 
 | Type | Labels | What it captures |
 |------|--------|------------------|
@@ -25,65 +37,57 @@ The AI reads each file's diff and classifies it into one of three work types:
 | **Maintenance** | `chore`, `refactor` | Upkeep, cleanup, and restructuring |
 | **Waste** | `fix` | Bug fixes — work that corrects previous output |
 
-This classification happens **per file**, not per commit — a single commit can contain both feature work and bug fixes across different files.
+Classification happens per file, not per commit. A single commit can contain feature work in one file and a bug fix in another — each is scored independently.
 
-## How the Performance score is calculated
+## How the score is calculated
 
-Each file's performance score combines two mechanical signals:
+Each file change produces a performance score from two mechanical signals: complexity and engagement.
 
-### Complexity
+**Complexity** combines two established measures. [Halstead complexity](https://en.wikipedia.org/wiki/Halstead_complexity_measures) (adapted) analyzes operators and operands to measure the vocabulary richness of the code. The formula is adapted to work fairly across languages and paradigms — a React component blending JSX, JavaScript, and CSS-in-JS would score artificially high under raw Halstead, so the adapted formula accounts for this. [Cyclomatic complexity](https://en.wikipedia.org/wiki/Cyclomatic_complexity) measures the number of independent execution paths. Every `if`, `for`, `while`, `case`, and logical operator (`&&`, `||`) adds a path. Together, Halstead measures how much you need to read, while cyclomatic complexity measures how many paths you need to reason about.
 
-Navigara computes a complexity score for each file by combining two established measures:
-
-**Halstead complexity** (adapted) — analyzes operators (keywords, control flow, symbols) and operands (identifiers, numbers, strings) to measure the vocabulary richness of the code. Navigara uses a formula [inspired by Halstead](https://en.wikipedia.org/wiki/Halstead_complexity_measures) but adapted to work fairly across languages and paradigms. For example, a React component blending JSX, JavaScript, and CSS-in-JS would score artificially high under raw Halstead because it looks like three languages merged together — the adapted formula accounts for this.
-
-**Cyclomatic complexity** — measures the number of independent execution paths through the code, based on [McCabe's Cyclomatic Complexity](https://en.wikipedia.org/wiki/Cyclomatic_complexity). Every `if`, `for`, `while`, `case`, and logical operator (`&&`, `||`) adds a path. Code with many branches is harder to understand and test than linear code, even if it has fewer lines.
-
-Together, these capture two distinct dimensions of difficulty: Halstead measures _how much_ you need to read, while cyclomatic complexity measures _how many paths_ you need to reason about.
-
-### Engagement
-
-Engagement estimates **how much of the surrounding context a developer needed to understand** to implement the change:
+**Engagement** estimates how much of the surrounding context a developer needed to understand to make the change:
 
 $$
 \text{engagement} = \sqrt{\frac{\text{lines changed}}{\text{total lines}}}
 $$
 
-Changing a few lines in a large file means you likely only needed to understand a small slice of it. Changing most of a file means you had to hold the whole thing in your head. The square root provides diminishing returns — changing 25% of a file gives ~50% engagement, reflecting that understanding grows faster than the raw line ratio.
+Changing a few lines in a large file means you likely only needed to understand a small slice of it. Changing most of a file means you had to hold the whole thing in your head. The square root provides diminishing returns — changing 25% of a file gives roughly 50% engagement.
 
-### Putting it together
+**The final score** for each file change is:
 
 $$
 \text{performance} = \frac{\text{complexity} \times \text{engagement}}{100}
 $$
 
-File-level scores are summed per work type, giving you three numbers — **grow**, **maintenance**, and **waste** — for any contributor, team, or repository over any time window.
+File-level scores are summed per work type, producing three numbers — grow, maintenance, and waste — for any contributor, team, or repository over any time window.
 
 ## Waste multiplier
 
-When the AI identifies a file change as a bug fix, it root-causes the issue by tracing the deleted or modified lines back to the commit that introduced them — identifying _who_ wrote the original code, _when_, and _how often_ the file has been churning. This context feeds into a **waste multiplier** that increases the score based on how costly the bug was to the organization:
+When the AI identifies a file change as a bug fix, it traces the deleted or modified lines back to the commit that introduced the bug — recording the original author, timestamp, and file churn history. This feeds into a waste multiplier that adjusts the score based on how costly the bug was:
 
 | Factor | What it measures | Effect |
 |--------|-----------------|--------|
-| **Time since origin** | How old was the buggy code? | Older bugs are more expensive — they've been in production longer |
+| **Time since origin** | How old was the buggy code? | Older bugs are more expensive — they have been in production longer |
 | **Author** | Did the same person fix it? | Fixes by a different developer cost more (context transfer) |
-| **File churn** | How often has this file been changed recently? | High-churn files signal systemic quality issues |
+| **File churn** | How often has this file changed recently? | High-churn files signal systemic quality issues |
 
-A trivial self-fix on code written the same day has a multiplier near **1.0×**. An old bug fixed by a different developer in a high-churn file can reach **~5.0×**.
+A trivial self-fix on code written the same day has a multiplier near 1.0x. An old bug fixed by a different developer in a high-churn file can reach roughly 5.0x.
 
 <Tip>
-A healthy codebase typically shows high **grow**, moderate **maintenance**, and low **waste**. A spike in waste may signal quality issues worth investigating.
+A healthy codebase typically shows high grow, moderate maintenance, and low waste. A spike in waste may signal quality issues worth investigating.
 </Tip>
+
+## Supporting roles
+
+Senior engineers often spend significant time on code reviews, architectural design, mentoring, and technical decision-making — work that does not produce commits. The Performance score does not capture these contributions directly. We are aware of this gap and plan to introduce metrics for non-code contributions in the future.
+
+We believe this is best addressed by measuring teams rather than individuals. An engineer in a supporting role raises the output quality of everyone around them — fewer bugs, better architecture, faster onboarding. That impact shows up in the team's aggregate performance even when the individual's commit-based score is low. This is why we recommend using team-level views as the primary lens. Individual scores are useful for understanding work distribution, but they do not tell the full story when supporting roles are involved.
 
 ## KTLO mode
 
-By default, Navigara shows the full three-bucket breakdown: **Grow / Maintenance / Waste**. If you prefer a simpler view, you can switch to **Grow / KTLO** mode.
+By default, Navigara shows the full three-bucket breakdown: Grow / Maintenance / Waste. If you prefer a simpler view, you can switch to **Grow / KTLO** mode in **Settings > General**.
 
-**KTLO** (Keep The Lights On) combines Maintenance and Waste into a single category. This is useful when communicating with stakeholders outside of engineering — instead of explaining three categories, you get a clean split between _new value_ (Grow) and _everything else_ (KTLO).
-
-### How to enable it
-
-Go to **Settings → General** and select the **Grow / KTLO** radio option under the metrics mode section. The change takes effect immediately across all dashboards and reports for your organization.
+KTLO (Keep The Lights On) combines Maintenance and Waste into a single category. This is useful when communicating with stakeholders outside of engineering — instead of explaining three categories, you get a clean split between new value (Grow) and everything else (KTLO).
 
 | Mode | Categories | Best for |
 |------|-----------|----------|
@@ -91,5 +95,5 @@ Go to **Settings → General** and select the **Grow / KTLO** radio option under
 | **Grow / KTLO** | 2 buckets | Executive reporting and cross-team communication |
 
 <Note>
-Switching metrics mode only changes how the data is displayed — the underlying analysis stays the same. You can switch back at any time without losing data.
+Switching metrics mode only changes how the data is displayed. The underlying analysis stays the same and you can switch back at any time without losing data.
 </Note>
