@@ -3,7 +3,7 @@ title: "Performance"
 description: "How Navigara measures the volume and complexity of engineering work."
 ---
 
-Performance measures the **impact of code changes** by combining what the AI understands about each file with mechanical analysis of the code itself. Every commit produces three scores — **grow**, **maintenance**, and **waste** — that capture both the nature and the difficulty of the work.
+The Performance score measures **what your team builds and how complex the work is**. It combines AI understanding of each file with mechanical code analysis to produce three scores per commit — **grow**, **maintenance**, and **waste** — that capture both the nature and the difficulty of the work.
 
 ## How it works: AI + mechanical analysis
 
@@ -13,7 +13,7 @@ Navigara uses a two-stage pipeline for every commit:
 
 2. **Mechanical scoring** — Deterministic algorithms then run over the same files to compute complexity and engagement scores. These are purely code-based — no LLM involved — so they're reproducible and consistent.
 
-The AI decides _what kind of work_ was done and _why_. The algorithms measure _how hard_ the code is. Impact is the product of both.
+The AI decides _what kind of work_ was done and _why_. The algorithms measure _how hard_ the code is. The performance score is the product of both.
 
 ## Work types
 
@@ -27,26 +27,26 @@ The AI reads each file's diff and classifies it into one of three work types:
 
 This classification happens **per file**, not per commit — a single commit can contain both feature work and bug fixes across different files.
 
-## How impact is calculated
+## How the Performance score is calculated
 
-Each file's impact score combines two mechanical signals:
+Each file's performance score combines two mechanical signals:
 
-### Complexity — The Maintainability Index
+### Complexity
 
-Navigara computes a **Maintainability Index (MI)** for each file by combining two established complexity measures:
+Navigara computes a complexity score for each file by combining two established measures:
 
 **Halstead complexity** (adapted) — analyzes operators (keywords, control flow, symbols) and operands (identifiers, numbers, strings) to measure the vocabulary richness of the code. Navigara uses a formula [inspired by Halstead](https://en.wikipedia.org/wiki/Halstead_complexity_measures) but adapted to work fairly across languages and paradigms. For example, a React component blending JSX, JavaScript, and CSS-in-JS would score artificially high under raw Halstead because it looks like three languages merged together — the adapted formula accounts for this.
 
 **Cyclomatic complexity** — measures the number of independent execution paths through the code, based on [McCabe's Cyclomatic Complexity](https://en.wikipedia.org/wiki/Cyclomatic_complexity). Every `if`, `for`, `while`, `case`, and logical operator (`&&`, `||`) adds a path. Code with many branches is harder to understand and test than linear code, even if it has fewer lines.
 
-Together, these capture two distinct dimensions of difficulty: Halstead measures _how much_ you need to read, while cyclomatic complexity measures _how many paths_ you need to reason about. The combined Maintainability Index gives a single score that reflects how hard the code is to work with.
+Together, these capture two distinct dimensions of difficulty: Halstead measures _how much_ you need to read, while cyclomatic complexity measures _how many paths_ you need to reason about.
 
 ### Engagement
 
 Engagement estimates **how much of the surrounding context a developer needed to understand** to implement the change:
 
 $$
-\text{engagement} = \min\!\Big(1,\;\sqrt{\frac{\text{lines changed}}{\text{total lines}}}\Big)
+\text{engagement} = \sqrt{\frac{\text{lines changed}}{\text{total lines}}}
 $$
 
 Changing a few lines in a large file means you likely only needed to understand a small slice of it. Changing most of a file means you had to hold the whole thing in your head. The square root provides diminishing returns — changing 25% of a file gives ~50% engagement, reflecting that understanding grows faster than the raw line ratio.
@@ -54,14 +54,14 @@ Changing a few lines in a large file means you likely only needed to understand 
 ### Putting it together
 
 $$
-\text{impact} = \frac{\text{complexity} \times \text{engagement}}{100}
+\text{performance} = \frac{\text{complexity} \times \text{engagement}}{100}
 $$
 
-File-level impacts are summed per work type, giving you three numbers — **grow**, **maintenance**, and **waste** — for any contributor, team, or repository over any time window.
+File-level scores are summed per work type, giving you three numbers — **grow**, **maintenance**, and **waste** — for any contributor, team, or repository over any time window.
 
 ## Waste multiplier
 
-When the AI identifies a file change as a bug fix, it root-causes the issue by tracing the deleted or modified lines back to the commit that introduced them — identifying _who_ wrote the original code, _when_, and _how often_ the file has been churning. This context feeds into a **waste multiplier** that increases the impact based on how costly the bug was to the organization:
+When the AI identifies a file change as a bug fix, it root-causes the issue by tracing the deleted or modified lines back to the commit that introduced them — identifying _who_ wrote the original code, _when_, and _how often_ the file has been churning. This context feeds into a **waste multiplier** that increases the score based on how costly the bug was to the organization:
 
 | Factor | What it measures | Effect |
 |--------|-----------------|--------|
