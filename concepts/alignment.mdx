@@ -1,0 +1,27 @@
+---
+title: "Alignment"
+description: "How Navigara connects code changes to your roadmap and planning hierarchy."
+---
+
+Alignment answers: **is the work connected to planned objectives?**
+
+Navigara links commits to your task management system (Linear, Jira, etc.) and traces each commit through your planning hierarchy:
+
+```
+Commit → Issue → Project → Initiative
+```
+
+## How it works
+
+1. **Issue extraction** — AI reads the commit message and code to find issue references (e.g. `ENG-123`, `#580`).
+2. **Hierarchy resolution** — Each issue is resolved to its parent project and initiative(s) in your task tracker.
+3. **Tagging** — The commit's metrics are tagged with the matched issue, project, and initiative so you can filter and aggregate at any level.
+
+## What you see
+
+- **Aligned commits** are linked to at least one issue. You can drill down to see which project or initiative they support.
+- **Unaligned commits** have no issue reference. Some unaligned work is normal (quick fixes, tooling), but a consistently high ratio may indicate work happening outside the plan.
+
+<Tip>
+Use alignment data to spot drift early — if a large share of effort is going to unplanned work, it's worth a conversation before the sprint ends.
+</Tip>

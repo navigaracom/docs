@@ -1,0 +1,38 @@
+---
+title: "Architecture"
+description: "How Navigara maps your codebase into features and tracks where work happens."
+---
+
+Architecture maps your codebase into **named features** and shows how work distributes across them.
+
+## Feature discovery
+
+When architecture analysis is enabled, Navigara runs a multi-phase AI agent that:
+
+1. **Explores** the codebase structure to discover distinct features (e.g. `auth`, `billing`, `notifications`).
+2. **Organizes** each feature into vertical layers — frontend, backend, and data — with specific file paths.
+3. **Maps dependencies** between features, showing which parts of the system are coupled.
+
+## Commit-to-feature matching
+
+Once features are discovered, every commit is matched to the feature(s) it touches based on the files it changes. This uses path-based scoring:
+
+| Match strategy | Confidence |
+|---|---|
+| Exact path match | Highest |
+| Directory containment | High |
+| Filename affinity | Moderate |
+
+When a file belongs to multiple features (e.g. a shared utility), the match is weighted to avoid double-counting.
+
+## What you see
+
+All performance and alignment metrics can be **grouped by feature**, so you can answer questions like:
+
+- _Which features are getting the most investment?_
+- _Where is most of the bug-fix work concentrated?_
+- _Is the auth system seeing unplanned churn?_
+
+<Tip>
+Architecture analysis is optional and can be enabled per repository. It's most useful for larger codebases where work naturally spans multiple distinct areas.
+</Tip>

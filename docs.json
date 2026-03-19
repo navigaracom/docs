@@ -23,7 +23,9 @@
           {
             "group": "Concepts",
             "pages": [
-              "concepts/performance-and-alignment"
+              "concepts/performance",
+              "concepts/alignment",
+              "concepts/architecture"
             ]
           },
           {
