@@ -1,17 +1,19 @@
 ---
 title: "Architecture"
-description: "How Navigara maps your codebase into features and tracks where work happens."
+description: "How Navigara maps your codebase into features, layers, and dependencies."
 ---
 
-Architecture maps your codebase into **named features** and shows how work distributes across them.
+Architecture maps your codebase into **named features** and shows how work distributes across them. It also powers the [architecture multiplier](/concepts/performance#architecture-multiplier) that adjusts performance scores based on structural complexity.
 
 ## Feature discovery
 
-When architecture analysis is enabled, Navigara runs a multi-phase AI agent that:
+When architecture analysis is enabled, Navigara runs a multi-phase AI agent per repository that:
 
 1. **Explores** the codebase structure to discover distinct features (e.g. `auth`, `billing`, `notifications`).
 2. **Organizes** each feature into vertical layers — frontend, backend, and data — with specific file paths.
 3. **Maps dependencies** between features, showing which parts of the system are coupled.
+
+The agent produces a feature graph: nodes are features with known layers, edges are dependency relationships. This graph is used for both visualization and as input to the performance multiplier.
 
 ## Commit-to-feature matching
 
@@ -25,6 +27,12 @@ Once features are discovered, every commit is matched to the feature(s) it touch
 
 When a file belongs to multiple features (e.g. a shared utility), the match is weighted to avoid double-counting.
 
+## Repository mesh
+
+When multiple repositories are connected to the same organization, their feature graphs are stitched into a **repository mesh** — a cross-repo dependency map. The mesh emerges from API contracts, shared libraries, and event flows detected by the architect agent.
+
+See [Performance > Repository mesh](/concepts/performance#repository-mesh) for how the mesh affects scoring.
+
 ## What you see
 
 All performance and alignment metrics can be **grouped by feature**, so you can answer questions like:
@@ -32,6 +40,8 @@ All performance and alignment metrics can be **grouped by feature**, so you can 
 - _Which features are getting the most investment?_
 - _Where is most of the bug-fix work concentrated?_
 - _Is the auth system seeing unplanned churn?_
+- _Which features have the highest structural complexity?_
+- _Where do cross-repository dependencies create leverage?_
 
 <Tip>
 Architecture analysis is optional and can be enabled per repository. It's most useful for larger codebases where work naturally spans multiple distinct areas.
