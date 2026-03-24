@@ -27,6 +27,16 @@ Navigara analyzes every source file modified in a commit. Not all file changes a
 
 These files are excluded from both the AI analysis and mechanical scoring. If you see a commit with fewer scored files than total files changed, the difference is filtered files. The knowledge graph records which files were filtered and why.
 
+## Supported languages
+
+Navigara provides full structural analysis — including Halstead complexity, cyclomatic complexity, and architectural outline extraction — for: C, C++, C#, Go, Java, JavaScript/TypeScript (including JSX/TSX), Kotlin, PHP, Python, Ruby, Rust, Scala, and Swift.
+
+Files in other languages still go through AI analysis (Stage 1) and receive engagement scores, but they will not have detailed complexity metrics from the mechanical scoring stage.
+
+<Note>
+Need support for a language not listed here? [Contact us](mailto:support@navigara.com) and we'll look into adding it.
+</Note>
+
 ## Work types
 
 The AI classifies each file change into one of three work types:
