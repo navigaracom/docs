@@ -221,8 +221,10 @@ services:
       LLM_MODEL: ${LLM_MODEL:-claude-sonnet-4-20250514}
       LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-8192}
       MIGRATIONS_PATH: ${MIGRATIONS_PATH:-db/migrations}
-      COLLECTOR_API_TOKEN: ${COLLECTOR_API_TOKEN:-navigara-collector-key}
-      FRONTEND_URL: ${FRONTEND_URL:-http://frontend:3000}
+      COLLECTOR_API_KEY: ${COLLECTOR_API_KEY:-navigara-collector-key}
+      FRONTEND_URL: https://${DOMAIN}
+      PUBLIC_API_URL: https://${DOMAIN}/api
+      DEPLOYMENT_MODE: onprem
     ports:
       - "127.0.0.1:8080:8080"
       - "127.0.0.1:9090:9090"
@@ -242,7 +244,7 @@ services:
     environment:
       SERVER_ADDR: backend:9090
       COLLECTOR_ID: ${COLLECTOR_ID:-collector-1}
-      COLLECTOR_API_TOKEN: ${COLLECTOR_API_TOKEN:-navigara-collector-key}
+      COLLECTOR_API_KEY: ${COLLECTOR_API_KEY:-navigara-collector-key}
       MAX_WORKERS: ${COLLECTOR_MAX_WORKERS:-10}
       LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
       LLM_MODEL: ${LLM_MODEL:-claude-sonnet-4-20250514}
@@ -264,6 +266,7 @@ services:
       - .env
     environment:
       BACKEND_API_URL: ${BACKEND_API_URL:-http://backend:8080}
+      DEPLOYMENT_MODE: onprem
       NODE_ENV: ${NODE_ENV:-production}
     ports:
       - "127.0.0.1:3000:3000"
@@ -341,10 +344,13 @@ LLM_API_URL=                       # Custom endpoint URL (optional, for self-hos
 # GOOGLE_APPLICATION_CREDENTIALS=/etc/navigara/vertex-ai-key.json  # Required if host is not authenticated via gcloud
 
 # Application
-DOMAIN=navigara.yourcompany.com
+DOMAIN=navigara.yourcompany.com  # Used by Caddy and to derive FRONTEND_URL / PUBLIC_API_URL
+
+# Authentication (enable password auth if not using OAuth/SSO)
+# ENABLE_PASSWORD_AUTH=true
 
 # Collector
-COLLECTOR_API_TOKEN=<generate-a-random-key>
+COLLECTOR_API_KEY=<generate-a-random-key>
 ```
 
 ### 3. Configure PostgreSQL
