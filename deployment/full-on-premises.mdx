@@ -195,13 +195,11 @@ docker compose version
 
 ### 2. Configure the deployment
 
-Create the deployment directory structure:
+Create the deployment directory structure and `docker-compose.yml`:
 
 ```bash
 mkdir -p /opt/navigara/deployment/caddy && cd /opt/navigara
 ```
-
-Create `docker-compose.yml`:
 
 ```yaml
 services:
@@ -311,7 +309,26 @@ networks:
     driver: bridge
 ```
 
-Create a `.env` file with your configuration:
+### 3. Generate Root Private Key
+
+Generate an Ed25519 key pair for admin root access. You will use the private key to generate login links in [Product Setup](#7-product-setup).
+
+```bash
+PRIVKEY_PEM=$(openssl genpkey -algorithm Ed25519)
+PUBKEY=$(echo "$PRIVKEY_PEM" | openssl pkey -pubout -outform DER | tail -c 32 | base64)
+SEED=$(echo "$PRIVKEY_PEM" | openssl pkey -outform DER | tail -c 32 | base64)
+printf -- "-----BEGIN PRIVATE KEY-----\n%s\n-----END PRIVATE KEY-----\n" "$SEED" > admin_key.pem
+echo "Public key (use below): $PUBKEY"
+echo "Private key saved to: admin_key.pem"
+```
+
+<Warning>
+  The `admin_key.pem` file is a credential for root access to your Navigara instance. Store it in a secure location (e.g. a vault or password manager) and restrict access to authorized administrators only.
+</Warning>
+
+### 4. Prepare Environment File
+
+Create a `.env` file with your configuration (paste the public key from step 3 into `ADMIN_PUBLIC_KEY`):
 
 ```bash
 # Version
@@ -346,6 +363,9 @@ LLM_API_URL=                       # Custom endpoint URL (optional, for self-hos
 # Application
 DOMAIN=navigara.yourcompany.com  # Used by Caddy and to derive FRONTEND_URL / PUBLIC_API_URL
 
+# Admin Root Access
+ADMIN_PUBLIC_KEY=<paste-public-key-from-step-3>
+
 # Authentication (enable password auth if not using OAuth/SSO)
 # ENABLE_PASSWORD_AUTH=true
 
@@ -353,7 +373,7 @@ DOMAIN=navigara.yourcompany.com  # Used by Caddy and to derive FRONTEND_URL / PU
 COLLECTOR_API_KEY=<generate-a-random-key>
 ```
 
-### 3. Configure PostgreSQL
+### 5. Configure PostgreSQL
 
 Connect to your PostgreSQL instance as a superuser and run the following:
 
@@ -385,7 +405,7 @@ DATABASE_URL=postgresql://navigara:<password>@<postgres-host>:5432/navigara?sslm
 
 Navigara runs database migrations automatically on startup — no manual schema setup is needed.
 
-### 4. Start Navigara
+### 6. Start Navigara
 
 ```bash
 # Pull the latest images
@@ -401,11 +421,7 @@ Verify all services are running:
 docker compose ps
 ```
 
-### 5. Access the application
-
-Open `https://navigara.yourcompany.com` in your browser. The first user to sign up becomes the organization owner.
-
-## Reverse Proxy (Caddy)
+### 7. Configure Reverse Proxy (Caddy)
 
 Navigara ships with [Caddy](https://caddyserver.com) as the reverse proxy. Caddy handles TLS termination, automatic certificate provisioning via Let's Encrypt, and routing between frontend, backend API, and gRPC services.
 
@@ -450,6 +466,53 @@ navigara.yourcompany.com {
 ```
 
 Caddy automatically provisions and renews TLS certificates via Let's Encrypt. No manual certificate management is required.
+
+### 8. Product Setup
+
+After all services are running, you need to log in as root to create the first organization and invite users. Use the `admin_key.pem` you generated in [step 3](#3-generate-root-private-key).
+
+**Generate a Root Login Link**
+
+Use the following Python script to generate a one-time login link. The link expires after 60 seconds.
+
+**Requirements:** `pip install PyJWT cryptography`
+
+```python
+#!/usr/bin/env python3
+"""Generate a root login link for Navigara (on-prem)."""
+import jwt, time, argparse, base64, urllib.parse
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives import serialization
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--key", required=True, help="Path to Ed25519 private key PEM file")
+parser.add_argument("--domain", required=True, help="Your Navigara domain (e.g. navigara.yourcompany.com)")
+args = parser.parse_args()
+
+with open(args.key) as f:
+    lines = [l.strip() for l in f if not l.startswith("-----")]
+seed = base64.b64decode("".join(lines))
+key = Ed25519PrivateKey.from_private_bytes(seed)
+pem = key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption())
+
+host = args.domain.split(":")[0]
+now = int(time.time())
+token = jwt.encode({"sub": "root", "aud": host, "iat": now, "exp": now + 60, "impersonated": True}, pem, algorithm="EdDSA")
+
+print(f"https://{args.domain}/impersonate?token={urllib.parse.quote(token)}")
+```
+
+Save this as `impersonate.py` and run it:
+
+```bash
+python3 impersonate.py --key admin_key.pem --domain navigara.yourcompany.com
+```
+
+Open the printed URL in your browser within 60 seconds. You will be logged in as the root admin and can create your first organization and invite users.
+
+<Tip>
+  You can re-run this script anytime you need root access — for example, to create additional organizations or manage platform settings.
+</Tip>
 
 ## Backup and Restore
 
