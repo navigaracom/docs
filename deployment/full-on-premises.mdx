@@ -222,7 +222,6 @@ services:
       COLLECTOR_API_KEY: ${COLLECTOR_API_KEY:-navigara-collector-key}
       FRONTEND_URL: https://${DOMAIN}
       PUBLIC_API_URL: https://${DOMAIN}/api
-      DEPLOYMENT_MODE: onprem
     ports:
       - "127.0.0.1:8080:8080"
       - "127.0.0.1:9090:9090"
@@ -264,7 +263,6 @@ services:
       - .env
     environment:
       BACKEND_API_URL: ${BACKEND_API_URL:-http://backend:8080}
-      DEPLOYMENT_MODE: onprem
       NODE_ENV: ${NODE_ENV:-production}
     ports:
       - "127.0.0.1:3000:3000"
