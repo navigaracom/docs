@@ -39,9 +39,9 @@ The collector connects to the Navigara API over a persistent gRPC stream. It rec
 
 | Scale | CPU | Memory | Disk |
 |-------|-----|--------|------|
-| **Small** (up to 500K commits) | 4 vCPU | 16 GB | 200 GB SSD |
-| **Medium** (up to 5M commits) | 8 vCPU | 32 GB | 500 GB SSD |
-| **Large** (up to 50M commits) | 16 vCPU | 64 GB | 1 TB SSD |
+| **Small** (up to 500K commits) | 8 vCPU | 16 GB | 200 GB SSD |
+| **Medium** (up to 5M commits) | 16 vCPU | 32 GB | 500 GB SSD |
+| **Large** (up to 50M commits) | 32 vCPU | 64 GB | 1 TB SSD |
 
 <Note>
   Disk is used for temporary Git clones during analysis. The collector caches cloned repositories to speed up subsequent analyses — SSD storage is recommended.
