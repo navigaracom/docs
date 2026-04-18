@@ -1,28 +1,274 @@
 ---
-title: "Integrations Overview"
-description: "Connect Navigara with your existing tools and workflows."
+title: "Supported Integrations"
+description: "Git providers, task management, authentication, and AI/LLM backends Navigara connects to."
 ---
 
-Navigara integrates with your Git providers and task management systems to provide comprehensive engineering analytics.
+Navigara connects to the tools your engineering organization already uses. This page lists every supported integration with setup, required permissions, and common troubleshooting.
 
-## Git Providers
+## At a glance
 
-<Columns cols={2}>
-  <Card title="GitHub" icon="github" href="/integrations/github">
-    Cloud and GitHub Enterprise support.
-  </Card>
-  <Card title="GitLab" icon="gitlab" href="/integrations/gitlab">
-    Cloud and self-hosted GitLab instances.
-  </Card>
-</Columns>
+| Category | Providers |
+| --- | --- |
+| Git | GitHub, GitLab, Bitbucket, Bitbucket Server, Azure DevOps |
+| Task management | Linear, Jira |
+| Authentication | Google, GitHub, GitLab, Microsoft, email/password |
+| AI / LLM | Google Vertex AI, AWS Bedrock, Azure AI Foundry |
 
-## Task Management
+All integrations are configured under **Settings → Integrations** unless noted otherwise.
 
-<Columns cols={2}>
-  <Card title="Linear" icon="link" href="/integrations/linear">
-    Native Linear integration for alignment tracking.
-  </Card>
-  <Card title="Jira" icon="link" href="/integrations/jira">
-    Atlassian Jira integration for alignment tracking.
-  </Card>
-</Columns>
+---
+
+## Git providers
+
+Navigara analyses commits, pull requests, and repository activity. Read-only access is sufficient for every provider.
+
+### GitHub
+
+Cloud (github.com) and GitHub Enterprise Server.
+
+**Setup**
+
+1. **Settings → Integrations → Connect GitHub**.
+2. Install the Navigara GitHub App on the target organization.
+3. Select the repositories to analyse (or grant access to all).
+
+**Required permissions**
+
+- Repository contents (read)
+- Pull requests (read)
+- Metadata (read)
+
+**Troubleshooting**
+
+- *Repos not showing up*: the GitHub App needs to be installed at the org level, not a personal account. Re-run the install flow and pick the right target.
+- *Enterprise Server*: set the instance URL when prompted. The App must be installed on the Enterprise instance, not github.com.
+
+### GitLab
+
+GitLab.com and self-hosted (CE/EE).
+
+**Setup**
+
+1. **Settings → Integrations → Connect GitLab**.
+2. For self-hosted, enter your GitLab instance URL.
+3. Authorize via OAuth, or provide a personal/group access token.
+
+**Required permissions / scopes**
+
+- `read_api`, `read_repository`, `read_user`
+
+**Troubleshooting**
+
+- *401 on self-hosted*: confirm the instance URL has no trailing path and that the token has `read_api`.
+- *Missing projects*: the token or OAuth user must be a member of the projects — group-level tokens only see projects within that group.
+
+### Bitbucket
+
+Bitbucket Cloud (bitbucket.org).
+
+**Setup**
+
+1. **Settings → Integrations → Connect Bitbucket**.
+2. Create a workspace access token or app password in Bitbucket and paste it.
+
+**Required permissions / scopes**
+
+- `repository:read`, `pullrequest:read`, `account:read`
+
+**Troubleshooting**
+
+- *403 on pull requests*: app passwords require the `pullrequest` scope explicitly — regenerate with that box ticked.
+
+### Bitbucket Server (self-hosted)
+
+Bitbucket Data Center / Server.
+
+**Setup**
+
+1. **Settings → Integrations → Connect Bitbucket Server**.
+2. Enter the instance URL and an HTTP access token.
+
+**Required permissions**
+
+- Project read + Repository read on each project to analyse.
+
+**Troubleshooting**
+
+- *TLS errors*: ensure the instance certificate chain is trusted by the Navigara deployment. For on-prem, mount your CA bundle.
+
+### Azure DevOps
+
+Azure DevOps Services (dev.azure.com).
+
+**Setup**
+
+1. **Settings → Integrations → Connect Azure DevOps**.
+2. Authorize via Microsoft Entra ID (recommended) or provide a personal access token.
+
+**Required permissions / scopes**
+
+- `vso.code`, `vso.code_status`, `vso.identity`, `vso.profile`
+
+**Troubleshooting**
+
+- *Entra ID tenant mismatch*: the signed-in user must belong to the same tenant as the Azure DevOps organization. Sign in with a directory user, not a personal Microsoft account.
+
+---
+
+## Task management
+
+Task management integrations power Alignment scoring by correlating commits and PRs with tracked work items.
+
+### Linear
+
+**Setup**
+
+1. **Settings → Integrations → Connect Linear**.
+2. Authorize the Navigara OAuth application.
+3. Pick the workspace to sync.
+
+**Required permissions / scopes**
+
+- `read` on issues, projects, and teams
+
+**Troubleshooting**
+
+- *Issues not linking*: Alignment relies on issue identifiers (e.g. `ENG-123`) appearing in commit messages, branch names, or PR titles.
+
+### Jira
+
+Jira Cloud and Jira Data Center / Server.
+
+**Setup**
+
+1. **Settings → Integrations → Connect Jira**.
+2. Provide your Jira site URL and an API token (Cloud) or personal access token (Data Center).
+3. Select the projects to sync.
+
+**Required permissions**
+
+- Browse projects, View issues on each synced project.
+
+**Troubleshooting**
+
+- *Cloud 401*: tokens are created at [id.atlassian.com](https://id.atlassian.com/manage-profile/security/api-tokens) and must be paired with the account email as the username.
+- *Data Center 403*: the PAT owner needs at least "Browse Projects" permission on every project you intend to sync.
+
+---
+
+## Authentication
+
+How users sign in to Navigara. Multiple methods can be enabled simultaneously; on-prem deployments pick which ones are exposed.
+
+### Google
+
+**Setup**
+
+1. Create an OAuth 2.0 client in Google Cloud Console.
+2. Add `https://<your-navigara-host>/api/auth/callback/google` as an authorized redirect URI.
+3. Set `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`.
+
+**Required scopes**
+
+- `openid`, `email`, `profile`
+
+### GitHub
+
+**Setup**
+
+1. Create an OAuth App under GitHub Developer Settings.
+2. Set the callback URL to `https://<your-navigara-host>/api/auth/callback/github`.
+3. Set `GITHUB_OAUTH_CLIENT_ID` and `GITHUB_OAUTH_CLIENT_SECRET`.
+
+**Required scopes**
+
+- `read:user`, `user:email`
+
+### GitLab
+
+**Setup**
+
+1. Create an OAuth application in GitLab (User → Preferences → Applications, or group-level).
+2. Set the redirect URI to `https://<your-navigara-host>/api/auth/callback/gitlab`.
+3. Set `GITLAB_OAUTH_CLIENT_ID` and `GITLAB_OAUTH_CLIENT_SECRET`.
+
+**Required scopes**
+
+- `read_user`, `openid`, `email`
+
+### Microsoft (Entra ID)
+
+**Setup**
+
+1. Register an application in Microsoft Entra ID.
+2. Add `https://<your-navigara-host>/api/auth/callback/microsoft` as a redirect URI.
+3. Set `MICROSOFT_OAUTH_CLIENT_ID` and `MICROSOFT_OAUTH_CLIENT_SECRET`.
+
+**Required scopes**
+
+- `openid`, `email`, `profile`, `User.Read`
+
+### Email and password
+
+Disabled by default. Set `ENABLE_PASSWORD_AUTH=true` in the backend environment to expose the email/password form. Intended for local development and isolated on-prem deployments where SSO is not available.
+
+---
+
+## AI / LLM
+
+Navigara uses LLMs for commit analysis, summaries, and AI-generated code detection. Any of the backends below works; **we recommend Anthropic Claude models** (Opus / Sonnet / Haiku) for the best analysis quality.
+
+### Google Vertex AI (recommended default)
+
+Native integration. Runs Gemini models directly and Anthropic Claude models via [Vertex AI Model Garden](https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude).
+
+**Configuration**
+
+```bash
+LLM_PROVIDER=vertexai
+LLM_MODEL=claude-sonnet-4-6          # recommended
+# or: gemini-2.5-flash for a Google-only stack
+GOOGLE_PROJECT=your-gcp-project
+GOOGLE_LOCATION=global
+```
+
+Authentication uses Application Default Credentials — the runtime service account needs `roles/aiplatform.user`.
+
+**Claude on Vertex**: Anthropic models are only available in specific regions (e.g. `us-east5`). Navigara handles region routing automatically when a `claude-*` model is selected.
+
+### AWS Bedrock
+
+Connect via Bedrock's OpenAI-compatible endpoint. Anthropic Claude models are available through Bedrock and are the recommended choice.
+
+**Configuration**
+
+```bash
+LLM_PROVIDER=openai
+LLM_MODEL=anthropic.claude-sonnet-4-6-v1:0
+LLM_API_KEY=<bedrock-api-key>
+LLM_API_URL=https://bedrock-runtime.<region>.amazonaws.com/openai/v1
+```
+
+The IAM principal backing the API key needs `bedrock:InvokeModel` on the target model and must have the model enabled in that region.
+
+### Azure AI Foundry
+
+Connect via Azure AI Foundry's OpenAI-compatible endpoint. Supports Azure-hosted OpenAI models and partner models (including Anthropic Claude on Foundry).
+
+**Configuration**
+
+```bash
+LLM_PROVIDER=openai
+LLM_MODEL=<your-deployment-name>
+LLM_API_KEY=<azure-api-key>
+LLM_API_URL=https://<your-resource>.openai.azure.com/openai/responses?api-version=2025-04-01-preview
+```
+
+Navigara detects `.openai.azure.com` URLs and switches to Azure authentication automatically. Create a deployment in Azure AI Foundry and use the deployment name as `LLM_MODEL`.
+
+### Troubleshooting
+
+- *401 / 403*: verify the API key, and for Vertex AI confirm the service account has `roles/aiplatform.user`.
+- *404 on model*: the model must be explicitly enabled/deployed in your cloud account (Bedrock model access, Azure deployment, Vertex Model Garden activation).
+- *Region errors for Claude on Vertex*: Claude models only run in specific Vertex regions. Leave `GOOGLE_LOCATION=global` and Navigara will route correctly.
+- *Slow responses / rate limits*: tune `MAX_CONCURRENT_TASKS` in the backend to stay within your provider's quota.
