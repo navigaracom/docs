@@ -5,6 +5,15 @@ description: "How Navigara measures the volume and complexity of engineering wor
 
 Navigara measures engineering output as three scores per commit: **grow**, **maintenance**, and **waste**. Each score reflects both the type of work and its complexity, computed from a combination of AI classification and deterministic code analysis. Every measurement happens at the individual file change level, not at the commit level — a single commit touching five files produces five independent scores, each with its own work type, complexity, and engagement.
 
+## Two-layer design
+
+Navigara's Performance metric has two independent layers, and each can be reasoned about on its own.
+
+1. **Per-commit scoring engine.** For every merged commit, the engine produces three sub-scores (grow, maintenance, waste) assembled per file and summed across the commit. The score structure itself is deterministic. Machine-learning components tune thresholds and coefficients inside that structure, and a large-language-model classifier resolves ambiguous work-type classifications where pattern-based signals are insufficient.
+2. **Aggregation layer.** The engine's per-commit scores roll up into per-developer, per-team, per-repository, and per-organization views over any time window.
+
+The engine answers *how much, and what kind of, work did this commit represent?* The aggregation layer answers *what does that look like for a person, a team, or the whole organization over time?*
+
 ## How it works
 
 Every commit goes through two stages.
@@ -29,7 +38,7 @@ These files are excluded from both the AI analysis and mechanical scoring. If yo
 
 ## Supported languages
 
-Navigara provides full structural analysis — including Halstead complexity, cyclomatic complexity, and architectural outline extraction — for: C, C++, C#, Go, Java, JavaScript/TypeScript (including JSX/TSX), Kotlin, PHP, Python, Ruby, Rust, Scala, and Swift.
+Navigara provides full structural analysis — including fuzzy code skeletal matching, data flow analysis, and architectural outline extraction — for: C, C++, C#, Go, Java, JavaScript/TypeScript (including JSX/TSX), Kotlin, PHP, Python, Ruby, Rust, Scala, and Swift.
 
 Files in other languages still go through AI analysis (Stage 1) and receive engagement scores, but they will not have detailed complexity metrics from the mechanical scoring stage.
 
@@ -51,19 +60,24 @@ Classification happens per file, not per commit. A single commit can contain fea
 
 ## How the score is calculated
 
-Each file change produces a performance score from two mechanical signals: complexity and engagement.
+Each file change starts with a base score built from two mechanical signals: **context complexity** and an **engagement multiplier** that accounts for how much of that context the change actually touched.
 
-**Complexity** combines two established measures. [Halstead complexity](https://en.wikipedia.org/wiki/Halstead_complexity_measures) (adapted) analyzes operators and operands to measure the vocabulary richness of the code. The formula is adapted to work fairly across languages and paradigms — a React component blending JSX, JavaScript, and CSS-in-JS would score artificially high under raw Halstead, so the adapted formula accounts for this. [Cyclomatic complexity](https://en.wikipedia.org/wiki/Cyclomatic_complexity) measures the number of independent execution paths. Every `if`, `for`, `while`, `case`, and logical operator (`&&`, `||`) adds a path. Together, Halstead measures how much you need to read, while cyclomatic complexity measures how many paths you need to reason about.
+**Context complexity** measures the cognitive weight of the surrounding code. Navigara builds it from two signals:
 
-**Engagement** estimates how much of the surrounding context a developer needed to understand to make the change:
+- **Fuzzy code skeletal matching** — captures the structural shape of functions, classes, and modules, so the engine recognises when two pieces of code share form even when identifiers and formatting differ. This also powers the similarity dampener described below.
+- **Data flow analysis** — traces how values move between definitions, transformations, and uses, which reflects how many paths a developer has to reason about to change the code safely.
+
+The combination works consistently across languages and paradigms — a React component blending JSX, JavaScript, and CSS-in-JS is scored on the same basis as a plain Go file.
+
+**Engagement multiplier** scales context complexity by the ratio of the change to the surrounding file:
 
 $$
 \text{engagement} = \sqrt{\frac{\text{lines changed}}{\text{total lines}}}
 $$
 
-Changing a few lines in a large file means you likely only needed to understand a small slice of it. Changing most of a file means you had to hold the whole thing in your head. The square root provides diminishing returns — changing 25% of a file gives roughly 50% engagement.
+Changing a few lines in a large file means you likely only needed to understand a small slice of it. Changing most of a file means you had to hold the whole thing in your head. The square root provides diminishing returns — changing 25% of a file gives roughly 50% engagement. Targeted modifications in complex areas therefore score higher than equivalent changes in trivial code.
 
-**The final score** for each file change is:
+**Base score:**
 
 $$
 \text{performance} = \frac{\text{complexity} \times \text{engagement}}{100}
@@ -71,15 +85,25 @@ $$
 
 File-level scores are summed per work type, producing three numbers — grow, maintenance, and waste — for any contributor, team, or repository over any time window.
 
+### Decay and dampening factors
+
+Several factors reduce the base score when a change does not represent genuinely new cognitive work. All of them apply before aggregation.
+
+| Factor | What it does |
+|--------|--------------|
+| **Similarity dampener** | Reduces credit for changes that are structurally similar to existing code, such as mechanical refactors or copy-paste patterns. |
+| **Blame decay** | Discounts changes that overwrite very recent work by the same author. The signal fades over a short business-day window, so revisiting older code is scored normally. |
+| **Copy decay** | Reduces the score for commits where a high proportion of added lines are duplicated from elsewhere in the codebase. |
+
+These factors are part of the deterministic score structure. ML is used only to tune their thresholds and coefficients — the formulas themselves are fixed and auditable.
+
 ## Waste multiplier
 
-When the AI identifies a file change as a bug fix, it traces the deleted or modified lines back to the commit that introduced the bug — recording the original author, timestamp, and file churn history. This feeds into a waste multiplier that adjusts the score based on how costly the bug was:
+When the AI identifies a file change as a bug fix, it traces the modified or deleted lines back to the commit that introduced the bug, recording the original author, timestamp, and churn history of the file. A **waste multiplier** then amplifies the score based on:
 
-| Factor | What it measures | Effect |
-|--------|-----------------|--------|
-| **Time since origin** | How old was the buggy code? | Older bugs are more expensive — they have been in production longer |
-| **Author** | Did the same person fix it? | Fixes by a different developer cost more (context transfer) |
-| **File churn** | How often has this file changed recently? | High-churn files signal systemic quality issues |
+- How long the original code existed before the bug was fixed.
+- Whether the fix targets another author's code (context-transfer cost).
+- How frequently the affected area has been modified recently.
 
 A trivial self-fix on code written the same day has a multiplier near 1.0x. An old bug fixed by a different developer in a high-churn file can reach roughly 5.0x.
 
@@ -142,11 +166,31 @@ The mesh adds an additional layer to the architecture multiplier. A feature that
 The architecture multiplier rewards engineers working on high-leverage, structurally complex parts of the system. Two commits with identical diffs will score differently if one touches a central feature with cross-repo dependents and the other touches an isolated utility.
 </Tip>
 
+## Attribution and aggregation
+
+How per-commit scores become per-developer, per-team, and per-organization numbers.
+
+**Commit → contributor.** Each commit is attributed to its **primary author** — the git author of the merged commit, after email alias resolution. Co-authors recorded in commit trailers are tracked in the knowledge graph but do not receive credit in the score.
+
+**Contributor → organization.** Contributors are attributed to an organization via the repositories they commit to. A contributor active in multiple connected repositories is counted once per organization, with their output summed across repos.
+
+**Bot exclusion.** Service accounts and automation bots are excluded by email and display-name patterns (for example `dependabot`, `renovate`, `github-actions`, and similar service accounts). Their commits are still visible in the knowledge graph for audit purposes, but they do not contribute to aggregated performance metrics.
+
+**Temporal attribution.** Commits are attributed to the time window in which they were **merged to the default branch**, not when they were authored. Long-lived feature branches land at their merge date, which can concentrate multi-sprint work into a single reporting interval. Use rolling windows rather than calendar quarters when you expect large merges to skew a specific period.
+
 ## Supporting roles
 
 Senior engineers often spend significant time on code reviews, architectural design, mentoring, and technical decision-making — work that does not produce commits. The Performance score does not capture these contributions directly. We are aware of this gap and plan to introduce metrics for non-code contributions in the future.
 
 We believe this is best addressed by measuring teams rather than individuals. An engineer in a supporting role raises the output quality of everyone around them — fewer bugs, better architecture, faster onboarding. That impact shows up in the team's aggregate performance even when the individual's commit-based score is low. This is why we recommend using team-level views as the primary lens. Individual scores are useful for understanding work distribution, but they do not tell the full story when supporting roles are involved.
+
+## Limitations
+
+Be explicit about what Performance does and does not observe.
+
+- **Only merged commits on in-scope repos.** If a repository is not connected, its commits are not scored. If a contributor does most of their work in an unconnected repository, their score will be low.
+- **Not captured as merged commits.** Code review depth, incident response, planning, mentorship, pair-programming sessions that never land as standalone commits, and any engineering contribution outside of merged code are not reflected.
+- **Attribution follows the git author.** Squash-merge policies that discard original authorship, or tools that rewrite authors (e.g. some AI coding assistants), will alter who receives credit. Connect your AI coding tool integrations to retain the underlying authorship.
 
 ## KTLO mode
 
