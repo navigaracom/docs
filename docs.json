@@ -31,11 +31,7 @@
           {
             "group": "Integrations",
             "pages": [
-              "integrations/overview",
-              "integrations/github",
-              "integrations/gitlab",
-              "integrations/linear",
-              "integrations/jira"
+              "integrations/overview"
             ]
           },
           {
