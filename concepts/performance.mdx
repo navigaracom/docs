@@ -67,9 +67,7 @@ Each file change starts with a base score built from two deterministic signals: 
 **Engagement multiplier** captures how much of the existing codebase the change had to reason about. Navigara derives this from two views:
 
 - **Inside the file.** For each modified function, Navigara identifies the existing lines the change actually interacts with — those that share identifiers with the changed lines, and those that flow into or out of calls on the changed lines via data flow analysis. Unrelated code in the same file is ignored.
-- **Across the repository.** For modified (not newly introduced) functions, the engine counts the existing call sites elsewhere in the repo — a proxy for the call sites the developer had to verify for compatibility. The count is capped so utility functions with hundreds of callers do not dominate.
-
-Entirely new code (new files, new functions) receives only the baseline multiplier — there is no existing context to understand yet. The multiplier is log-scaled, so very large contexts do not blow up the score; a change touching a heavily-connected area is credited proportionally, not explosively.
+- **Across the repository.** For modified functions, the engine counts the call sites elsewhere in the repo — a proxy for the call sites the developer had to verify for compatibility.
 
 The final base score combines the two:
 
@@ -103,61 +101,6 @@ A trivial self-fix on code written the same day has a multiplier near 1.0x. An o
 
 <Tip>
 A healthy codebase typically shows high grow, moderate maintenance, and low waste. A spike in waste may signal quality issues worth investigating.
-</Tip>
-
-## Architecture multiplier
-
-The base performance score measures how complex the code itself is. But not all code operates in isolation — a change to a billing endpoint that coordinates frontend forms, backend validation, a payment gateway, and database transactions is harder than a change of equal cyclomatic complexity in a standalone utility.
-
-Navigara captures this through the **architecture multiplier**, powered by a dedicated [architect agent](/concepts/architecture) that runs per repository.
-
-### How the architect agent works
-
-When [architecture analysis](/concepts/architecture) is enabled, a multi-phase agent explores the codebase and builds a structured map:
-
-1. **Feature discovery** — identifies distinct features (e.g. `auth`, `billing`, `notifications`) from code structure, naming conventions, and module boundaries.
-2. **Vertical stack mapping** — classifies each feature's files into layers: frontend, backend, and data.
-3. **Dependency mapping** — traces dependencies and dependents between features within the repository.
-
-The result is a feature graph where each node is a feature with known layers and edges represent coupling between features. See [Architecture](/concepts/architecture) for details on how features are discovered and matched to commits.
-
-### How the multiplier is calculated
-
-For each feature, the architecture multiplier reflects the complexity of its input/output surface:
-
-| Factor | What it measures | Effect |
-|--------|-----------------|--------|
-| **Vertical span** | How many layers does the feature touch? | A feature spanning frontend, backend, and data is harder to change than one confined to a single layer |
-| **Dependency count** | How many other features depend on this one? | More dependents means more constraints on changes |
-| **Dependent count** | How many features does this one consume? | More dependencies means more context to hold |
-
-A self-contained backend utility with no dependencies gets a multiplier near **1.0x**. A feature that spans all three layers and sits at the center of the dependency graph can reach **3.0x** or higher.
-
-When a commit touches files belonging to a feature, the file-level performance scores are multiplied by that feature's architecture multiplier:
-
-$$
-\text{adjusted performance} = \text{base performance} \times \text{architecture multiplier}
-$$
-
-### Repository mesh
-
-Individual repositories don't exist in a vacuum. In a microservices or monorepo-adjacent setup, features in one repository often depend on features in another — a frontend app consumes a backend API, which in turn depends on a shared auth library.
-
-When multiple repositories are connected to the same organization, Navigara builds a **repository mesh** — a cross-repository dependency graph where edges represent inter-repo feature dependencies. These emerge automatically when the architect agent detects:
-
-- **API contracts** — a frontend feature importing types generated from a backend proto or OpenAPI spec.
-- **Shared libraries** — multiple repositories depending on the same internal package.
-- **Event flows** — a producer feature in one repo and a consumer feature in another.
-
-The mesh adds an additional layer to the architecture multiplier. A feature that is a dependency for features in other repositories carries more weight than one with only intra-repo dependents, because changes to it have a wider blast radius.
-
-| Scope | Multiplier range | Example |
-|-------|-----------------|---------|
-| **Intra-repo only** | 1.0x – 3.0x | A feature used only within its own repository |
-| **Cross-repo dependency** | 1.5x – 5.0x | A shared auth library consumed by three services |
-
-<Tip>
-The architecture multiplier rewards engineers working on high-leverage, structurally complex parts of the system. Two commits with identical diffs will score differently if one touches a central feature with cross-repo dependents and the other touches an isolated utility.
 </Tip>
 
 ## Attribution and aggregation
