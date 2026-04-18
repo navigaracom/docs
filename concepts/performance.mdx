@@ -60,30 +60,24 @@ Classification happens per file, not per commit. A single commit can contain fea
 
 ## How the score is calculated
 
-Each file change starts with a base score built from two mechanical signals: **context complexity** and an **engagement multiplier** that accounts for how much of that context the change actually touched.
+Each file change starts with a base score built from two deterministic signals: **context complexity** — the code-logic weight of the change itself — and an **engagement multiplier** that reflects how much of the surrounding code the change actually interacted with.
 
-**Context complexity** measures the cognitive weight of the surrounding code. Navigara builds it from two signals:
+**Context complexity** is computed per function scope over the added and modified lines, so the same number of changed lines can carry very different weight depending on what those lines do. The calculation works consistently across languages and paradigms — a React component blending JSX, JavaScript, and CSS-in-JS is scored on the same basis as a plain Go file.
 
-- **Fuzzy code skeletal matching** — captures the structural shape of functions, classes, and modules, so the engine recognises when two pieces of code share form even when identifiers and formatting differ. This also powers the similarity dampener described below.
-- **Data flow analysis** — traces how values move between definitions, transformations, and uses, which reflects how many paths a developer has to reason about to change the code safely.
+**Engagement multiplier** captures how much of the existing codebase the change had to reason about. Navigara derives this from two views:
 
-The combination works consistently across languages and paradigms — a React component blending JSX, JavaScript, and CSS-in-JS is scored on the same basis as a plain Go file.
+- **Inside the file.** For each modified function, Navigara identifies the existing lines the change actually interacts with — those that share identifiers with the changed lines, and those that flow into or out of calls on the changed lines via data flow analysis. Unrelated code in the same file is ignored.
+- **Across the repository.** For modified (not newly introduced) functions, the engine counts the existing call sites elsewhere in the repo — a proxy for the call sites the developer had to verify for compatibility. The count is capped so utility functions with hundreds of callers do not dominate.
 
-**Engagement multiplier** scales context complexity by the ratio of the change to the surrounding file:
+Entirely new code (new files, new functions) receives only the baseline multiplier — there is no existing context to understand yet. The multiplier is log-scaled, so very large contexts do not blow up the score; a change touching a heavily-connected area is credited proportionally, not explosively.
 
-$$
-\text{engagement} = \sqrt{\frac{\text{lines changed}}{\text{total lines}}}
-$$
-
-Changing a few lines in a large file means you likely only needed to understand a small slice of it. Changing most of a file means you had to hold the whole thing in your head. The square root provides diminishing returns — changing 25% of a file gives roughly 50% engagement. Targeted modifications in complex areas therefore score higher than equivalent changes in trivial code.
-
-**Base score:**
+The final base score combines the two:
 
 $$
-\text{performance} = \frac{\text{complexity} \times \text{engagement}}{100}
+\text{performance} \;\propto\; \text{context complexity} \times \text{engagement multiplier}
 $$
 
-File-level scores are summed per work type, producing three numbers — grow, maintenance, and waste — for any contributor, team, or repository over any time window.
+File-level scores are then summed per work type, producing three numbers — grow, maintenance, and waste — for any contributor, team, or repository over any time window.
 
 ### Decay and dampening factors
 
