@@ -89,7 +89,7 @@ Several factors reduce the base score when a change does not represent genuinely
 
 These factors are part of the deterministic score structure. ML is used only to tune their thresholds and coefficients — the formulas themselves are fixed and auditable.
 
-## Waste multiplier
+### Waste multiplier
 
 When the AI identifies a file change as a bug fix, it traces the modified or deleted lines back to the commit that introduced the bug, recording the original author, timestamp, and churn history of the file. A **waste multiplier** then amplifies the score based on:
 
