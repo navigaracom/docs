@@ -3,21 +3,31 @@ title: "Performance"
 description: "How Navigara measures the volume and complexity of engineering work."
 ---
 
-Navigara measures engineering output as three scores per commit: **grow**, **maintenance**, and **waste**. Each score reflects both the type of work and its complexity, computed from a combination of AI classification and deterministic code analysis. Every measurement happens at the individual file change level, not at the commit level — a single commit touching five files produces five independent scores, each with its own work type, complexity, and engagement.
+Navigara measures engineering output per file change. Every modified source file in a merged commit produces three sub-scores — **growth**, **maintenance**, and **fixes** — each denominated in a common unit called **ETV** (Engineering Throughput Value) and reflecting both the type of work and the cognitive weight of the change. A commit touching five files contributes five independent measurements; contributor, team, and organization totals are sums over a time window.
 
-## How it works
+There is no single "Performance score." *Performance* in this document means the triple (growth, maintenance, fixes), computed identically at every level of aggregation. If you prefer a two-bucket view, see [KTLO mode](#ktlo-mode).
 
-Every commit goes through two stages.
+## The ETV unit
 
-**Stage 1: AI analysis.** Navigara reads the commit message, the full diff, and the surrounding code context. For each changed file, the model classifies the type of work (feature, fix, refactor), identifies the changed symbols (functions, classes, endpoints), and, for bug fixes, traces the issue back to the originating commit, recording the original author and timestamp. Results are stored in a knowledge graph connecting commits, files, symbols, and issues.
+All Navigara performance metrics are expressed in **ETV** (Engineering Throughput Value). Every file change contributes some amount of ETV to one of the three buckets — growth, maintenance, or fixes — and those amounts are summed across commits, contributors, teams, and repositories to produce every view in the product.
 
-**Stage 2: Mechanical scoring.** Deterministic algorithms compute complexity and engagement scores over the same files. No LLM is involved at this stage. Scores are reproducible and consistent across runs.
+ETV is additive within a work type: a contributor's growth ETV over a quarter is the sum of the growth ETV across every commit they merged in that quarter. It is deliberately not additive across work types — growth ETV and fix ETV reflect different kinds of output, so collapsing them into a single scalar would hide the signal the three-bucket model exists to surface.
 
-The AI determines what kind of work was done. The algorithms determine how hard the code is. The Performance score combines both.
+ETV is designed to be comparable over time for the same contributor, team, and repository. Cross-repository and cross-team comparisons are meaningful as trends, but raw ETV totals are not automatically normalized across repositories of very different size or language mix — see [The repository as context boundary](#the-repository-as-context-boundary) below.
 
-## What gets analyzed
+## How a commit is scored
 
-Navigara analyzes every source file modified in a commit. Not all file changes are scored — before analysis begins, the following are automatically filtered out:
+Two things happen to every merged commit, in order.
+
+**Stage 1: AI analysis.** Navigara reads the commit message, the full diff, and the surrounding code context. For each changed file, the model classifies the type of work (growth, maintenance, fixes), identifies the changed symbols (functions, classes, endpoints), and, for bug fixes, traces the issue back to the originating commit, recording the original author and timestamp. Results are stored in a knowledge graph connecting commits, files, symbols, and issues.
+
+**Stage 2: Mechanical scoring.** Deterministic algorithms compute complexity and engagement over the same files. No LLM is involved at this stage. Scores are reproducible and consistent across runs.
+
+The AI determines *what kind of work* was done. The algorithms determine *how much*. File-level scores sum per work type, and those totals roll up into per-developer, per-team, per-repository, and per-organization views.
+
+## Filtered files
+
+Navigara analyzes every source file modified in a commit, with a handful of non-authored categories filtered out before analysis begins:
 
 - **Generated code** — Protocol Buffer outputs (`.pb.go`, `_grpc.pb.go`, `.pb.ts`), GraphQL codegen (`.graphql.ts`), OpenAPI specs, and other machine-generated files (`*_generated.go`, `*.gen.go`, `zz_generated.*`).
 - **Dependency lockfiles** — `go.sum`, `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `Cargo.lock`, `Gemfile.lock`, and similar.
@@ -25,13 +35,15 @@ Navigara analyzes every source file modified in a commit. Not all file changes a
 - **Minified files** — detected by content heuristics when average line length exceeds 300 characters.
 - **Binary and media files** — images, fonts, PDFs, archives, compiled binaries.
 
-These files are excluded from both the AI analysis and mechanical scoring. If you see a commit with fewer scored files than total files changed, the difference is filtered files. The knowledge graph records which files were filtered and why.
+Filtered files are excluded from both AI analysis and mechanical scoring. If you see a commit with fewer scored files than total files changed, the difference is filtered files. The knowledge graph records which files were filtered and why.
+
+Teams with unusual generated-code conventions or build layouts can extend the filter list from organization settings to exclude additional paths.
 
 ## Supported languages
 
-Navigara provides full structural analysis — including Halstead complexity, cyclomatic complexity, and architectural outline extraction — for: C, C++, C#, Go, Java, JavaScript/TypeScript (including JSX/TSX), Kotlin, PHP, Python, Ruby, Rust, Scala, and Swift.
+Navigara provides full structural analysis — including fuzzy code skeletal matching, data flow analysis, and architectural outline extraction — for: C, C++, C#, Go, Java, JavaScript/TypeScript (including JSX/TSX), Kotlin, PHP, Python, Ruby, Rust, Scala, and Swift.
 
-Files in other languages still go through AI analysis (Stage 1) and receive engagement scores, but they will not have detailed complexity metrics from the mechanical scoring stage.
+For HTML, CSS, SQL, Terraform, shell, YAML, Markdown, and other declarative or configuration-heavy files, work-type classification still runs and the change still contributes to the score, but mechanical scoring has lower fidelity — context complexity is approximated from line-level signals rather than structural analysis.
 
 <Note>
 Need support for a language not listed here? [Contact us](mailto:support@navigara.com) and we'll look into adding it.
@@ -39,126 +51,150 @@ Need support for a language not listed here? [Contact us](mailto:support@navigar
 
 ## Work types
 
-The AI classifies each file change into one of three work types:
+The AI classifies each file change based on what the diff actually does, not on commit message conventions. Prefixes are a hint, not a rule.
 
-| Type | Labels | What it captures |
-|------|--------|------------------|
-| **Grow** | `feat` | New features and capabilities |
-| **Maintenance** | `chore`, `refactor` | Upkeep, cleanup, and restructuring |
-| **Waste** | `fix` | Bug fixes — work that corrects previous output |
+| Type | What it captures | Conventional Commits hint |
+|------|------------------|---------------------------|
+| **Growth** | New functionality, net-new capabilities | `feat` |
+| **Maintenance** | Upkeep, refactors, cleanup, performance, tests, dependency updates, docs, style, build, CI | `chore`, `refactor`, `perf`, `test`, `style`, `build`, `ci`, `docs` |
+| **Fixes** | Work that corrects previous output | `fix` |
 
-Classification happens per file, not per commit. A single commit can contain feature work in one file and a bug fix in another — each is scored independently.
+Classification is per file. A single commit can contain growth work in one file and a fix in another — each is scored independently.
 
 ## How the score is calculated
 
-Each file change produces a performance score from two mechanical signals: complexity and engagement.
+Each file-level score starts from two deterministic inputs — **context complexity** and **engagement** — combined into a base score. Dampeners then adjust it, and for bug fixes a fix multiplier amplifies it. All adjustments apply before aggregation.
 
-**Complexity** combines two established measures. [Halstead complexity](https://en.wikipedia.org/wiki/Halstead_complexity_measures) (adapted) analyzes operators and operands to measure the vocabulary richness of the code. The formula is adapted to work fairly across languages and paradigms — a React component blending JSX, JavaScript, and CSS-in-JS would score artificially high under raw Halstead, so the adapted formula accounts for this. [Cyclomatic complexity](https://en.wikipedia.org/wiki/Cyclomatic_complexity) measures the number of independent execution paths. Every `if`, `for`, `while`, `case`, and logical operator (`&&`, `||`) adds a path. Together, Halstead measures how much you need to read, while cyclomatic complexity measures how many paths you need to reason about.
+**Context complexity** is computed per function scope over the added and modified lines, so the same number of changed lines can carry very different weight depending on what those lines do. The calculation works consistently across languages and paradigms — a React component blending JSX, JavaScript, and CSS-in-JS is scored on the same basis as a plain Go file.
 
-**Engagement** estimates how much of the surrounding context a developer needed to understand to make the change:
+**Engagement** captures how much of the existing codebase the change had to reason about. Navigara derives this from two views:
 
-$$
-\text{engagement} = \sqrt{\frac{\text{lines changed}}{\text{total lines}}}
-$$
+- **Inside the file.** For each modified function, Navigara identifies the existing lines the change actually interacts with — those that share identifiers with the changed lines, and those that flow into or out of calls on the changed lines via data flow analysis. Unrelated code in the same file is ignored.
+- **Across the repository.** Data flow doesn't stop at file boundaries. When a change alters a function's inputs, outputs, or externally-visible behavior, Navigara traces the affected values into callers and callees elsewhere in the repo — following the same reasoning the engineer had to do to make the change safely. Engagement reflects the surface area the developer actually had to understand, not a raw count of references. Engagement from heavily-reused utilities is bounded so that one-line edits to universal helpers don't dominate the score.
 
-Changing a few lines in a large file means you likely only needed to understand a small slice of it. Changing most of a file means you had to hold the whole thing in your head. The square root provides diminishing returns — changing 25% of a file gives roughly 50% engagement.
+File-level scores are then summed per work type, producing three numbers — growth, maintenance, and fixes — for any contributor, team, or repository over any time window.
 
-**The final score** for each file change is:
+### Decay and dampening factors
 
-$$
-\text{performance} = \frac{\text{complexity} \times \text{engagement}}{100}
-$$
+Several factors reduce the base score when a change does not represent genuinely new cognitive work. All of them apply before aggregation.
 
-File-level scores are summed per work type, producing three numbers — grow, maintenance, and waste — for any contributor, team, or repository over any time window.
+| Factor | What it does |
+|--------|--------------|
+| **Similarity dampener** | Reduces credit when the change's *structure* closely matches patterns already in the codebase — mechanical refactors, boilerplate replication. Works on structural signatures of the change. |
+| **Blame decay** | Discounts changes that overwrite very recent work by the same author. The signal fades over a short business-day window, so revisiting older code is scored normally. |
+| **Copy decay** | Reduces credit when added *lines* are literally duplicated from elsewhere in the repo. Works on the text of the diff. |
 
-## Waste multiplier
+Thresholds and coefficients inside these factors — dampener sensitivities, engagement bounds, fix multiplier curves — are calibrated against a corpus of labeled commits and recalibrated periodically. They are the same across all customers; there is no per-customer model training. The formulas that consume them are fixed and auditable. The LLM is involved only in Stage 1 classification and bug-origin tracing, never in score computation.
 
-When the AI identifies a file change as a bug fix, it traces the deleted or modified lines back to the commit that introduced the bug — recording the original author, timestamp, and file churn history. This feeds into a waste multiplier that adjusts the score based on how costly the bug was:
+### Fix multiplier
 
-| Factor | What it measures | Effect |
-|--------|-----------------|--------|
-| **Time since origin** | How old was the buggy code? | Older bugs are more expensive — they have been in production longer |
-| **Author** | Did the same person fix it? | Fixes by a different developer cost more (context transfer) |
-| **File churn** | How often has this file changed recently? | High-churn files signal systemic quality issues |
+When the AI identifies a file change as a bug fix, it traces the modified or deleted lines back to the commit that introduced the bug, recording the original author, timestamp, and churn history of the file. A **fix multiplier** then amplifies the score to reflect how much context a reader had to rebuild in order to make the fix safely.
 
-A trivial self-fix on code written the same day has a multiplier near 1.0x. An old bug fixed by a different developer in a high-churn file can reach roughly 5.0x.
+The multiplier grows when:
 
-<Tip>
-A healthy codebase typically shows high grow, moderate maintenance, and low waste. A spike in waste may signal quality issues worth investigating.
-</Tip>
+- The bug lived in the codebase long enough that the fixer no longer has the original context fresh in mind.
+- The fix touches another author's code, raising context-transfer cost.
+- The affected area has been modified frequently since the bug was introduced, enlarging the risk surface.
 
-## Architecture multiplier
-
-The base performance score measures how complex the code itself is. But not all code operates in isolation — a change to a billing endpoint that coordinates frontend forms, backend validation, a payment gateway, and database transactions is harder than a change of equal cyclomatic complexity in a standalone utility.
-
-Navigara captures this through the **architecture multiplier**, powered by a dedicated [architect agent](/concepts/architecture) that runs per repository.
-
-### How the architect agent works
-
-When [architecture analysis](/concepts/architecture) is enabled, a multi-phase agent explores the codebase and builds a structured map:
-
-1. **Feature discovery** — identifies distinct features (e.g. `auth`, `billing`, `notifications`) from code structure, naming conventions, and module boundaries.
-2. **Vertical stack mapping** — classifies each feature's files into layers: frontend, backend, and data.
-3. **Dependency mapping** — traces dependencies and dependents between features within the repository.
-
-The result is a feature graph where each node is a feature with known layers and edges represent coupling between features. See [Architecture](/concepts/architecture) for details on how features are discovered and matched to commits.
-
-### How the multiplier is calculated
-
-For each feature, the architecture multiplier reflects the complexity of its input/output surface:
-
-| Factor | What it measures | Effect |
-|--------|-----------------|--------|
-| **Vertical span** | How many layers does the feature touch? | A feature spanning frontend, backend, and data is harder to change than one confined to a single layer |
-| **Dependency count** | How many other features depend on this one? | More dependents means more constraints on changes |
-| **Dependent count** | How many features does this one consume? | More dependencies means more context to hold |
-
-A self-contained backend utility with no dependencies gets a multiplier near **1.0x**. A feature that spans all three layers and sits at the center of the dependency graph can reach **3.0x** or higher.
-
-When a commit touches files belonging to a feature, the file-level performance scores are multiplied by that feature's architecture multiplier:
-
-$$
-\text{adjusted performance} = \text{base performance} \times \text{architecture multiplier}
-$$
-
-### Repository mesh
-
-Individual repositories don't exist in a vacuum. In a microservices or monorepo-adjacent setup, features in one repository often depend on features in another — a frontend app consumes a backend API, which in turn depends on a shared auth library.
-
-When multiple repositories are connected to the same organization, Navigara builds a **repository mesh** — a cross-repository dependency graph where edges represent inter-repo feature dependencies. These emerge automatically when the architect agent detects:
-
-- **API contracts** — a frontend feature importing types generated from a backend proto or OpenAPI spec.
-- **Shared libraries** — multiple repositories depending on the same internal package.
-- **Event flows** — a producer feature in one repo and a consumer feature in another.
-
-The mesh adds an additional layer to the architecture multiplier. A feature that is a dependency for features in other repositories carries more weight than one with only intra-repo dependents, because changes to it have a wider blast radius.
-
-| Scope | Multiplier range | Example |
-|-------|-----------------|---------|
-| **Intra-repo only** | 1.0x – 3.0x | A feature used only within its own repository |
-| **Cross-repo dependency** | 1.5x – 5.0x | A shared auth library consumed by three services |
+A trivial self-fix on code written the same day barely shifts the score. A fix in a high-churn area on code the fixer has never touched before is amplified substantially — the deeper the required context rebuild, the stronger the amplification.
 
 <Tip>
-The architecture multiplier rewards engineers working on high-leverage, structurally complex parts of the system. Two commits with identical diffs will score differently if one touches a central feature with cross-repo dependents and the other touches an isolated utility.
+A healthy codebase typically shows high growth, moderate maintenance, and few fixes. A spike in fixes may signal quality issues worth investigating.
 </Tip>
+
+### Squash vs merge commits
+
+Teams land pull requests in different ways: merge commits preserve every commit on the feature branch; squash-merge collapses the branch into a single commit; rebase-and-merge replays commits onto the default branch. Performance is defined over whatever commits exist on the default branch after landing.
+
+The dampening factors are calibrated so that these paths converge. When a branch lands via merge commit, each constituent commit is scored individually and later commits are dampened where they overlap with earlier ones (similarity, blame decay, copy decay). When the same branch is squashed, the resulting commit carries the full scope in one shot without intermediate overlap to dampen. Totals come out close in either case.
+
+Performance is stable against your team's merge policy — you don't need to change how you merge to get meaningful numbers.
+
+### Example
+
+A single commit touches four files:
+
+1. **`api/auth/session.ts`** — adds a new `refreshSession()` function whose return value is consumed by multiple existing handlers across several files.
+   Classified as **growth**. Context complexity is substantial (new control flow, async error paths). Engagement is high because the values produced by `refreshSession()` flow into call sites in other files — the engineer had to reason about each of those consumers to keep them compatible with the new behavior. Result: large growth contribution.
+
+2. **`api/auth/login.ts`** — modifies the login handler to wire in `refreshSession()`. A small local edit, but the handler's modified return value continues to flow through downstream code in other files.
+   Classified as **growth**. Moderate context complexity; engagement is lifted by the cross-file data flow rather than the size of the diff. Result: moderate growth contribution.
+
+3. **`api/payments/charge.ts`** — fixes a null-check bug originally introduced by a different engineer many months earlier, in a file that has churned repeatedly since.
+   Classified as **fix**. Small context complexity, but the fix multiplier amplifies it significantly: the bug is old, the fixer inherited the context, and the surrounding code has moved under them. Result: notable fix contribution.
+
+4. **`.github/workflows/test.yml`** — bumps the Node version used in CI.
+   Classified as **maintenance**. Minimal context complexity; no meaningful engagement. Result: small maintenance contribution.
+
+The commit's totals are the sums of these per-file scores by work type.
+
+## The repository as context boundary
+
+Navigara scores changes within the context of their repository. Engagement is measured against the repo's other functions and call sites; context complexity is computed against local function scopes. Navigara does **not** perform cross-repository analysis — a change in repository A does not carry engagement weight from repository B, even if the two are related services.
+
+This is deliberate. The repository is the natural boundary of abstraction in most engineering organizations: it has a coherent build, review process, and ownership model. Cross-repo call graphs exist in practice but are rarely stable enough to use as a measurement substrate.
+
+Scores are therefore not automatically comparable across repositories of very different size or language mix. When comparing teams that work in different repos, compare trends within each team rather than raw totals across teams.
+
+## Attribution
+
+### Who gets credit
+
+Each commit is attributed to its **primary author** — the git author of the merged commit, after email alias resolution. Co-authors recorded in commit trailers are tracked in the knowledge graph but do not receive credit in the score.
+
+Contributors roll up to an organization via the repositories they commit to. A contributor active in multiple connected repositories within one organization is counted once, with their output summed across repos.
+
+**Bot and excluded contributors.** A default list covers common automation tools (`dependabot`, `renovate`, `github-actions`, and similar) and removes them from aggregated metrics. Organization admins can additionally flag any contributor as a bot — or mark them as excluded from rollups for other reasons — from the Contributors page. Flagged contributors remain visible in the knowledge graph for audit, but their commits do not contribute to aggregated performance metrics.
+
+### When it counts
+
+Commits are attributed to the time window in which they were **merged to the default branch**, not when they were authored. In AI-native teams, work typically ships in days rather than weeks, so merge-date attribution closely tracks when the work actually happened.
 
 ## Supporting roles
 
-Senior engineers often spend significant time on code reviews, architectural design, mentoring, and technical decision-making — work that does not produce commits. The Performance score does not capture these contributions directly. We are aware of this gap and plan to introduce metrics for non-code contributions in the future.
+Senior engineers spend significant time on code review, architecture, mentoring, and technical decisions — work that rarely produces commits. Per-commit scoring does not capture these contributions directly, and aggregating commits to individuals will systematically underrate them.
 
-We believe this is best addressed by measuring teams rather than individuals. An engineer in a supporting role raises the output quality of everyone around them — fewer bugs, better architecture, faster onboarding. That impact shows up in the team's aggregate performance even when the individual's commit-based score is low. This is why we recommend using team-level views as the primary lens. Individual scores are useful for understanding work distribution, but they do not tell the full story when supporting roles are involved.
+**Use team-level views as the primary lens.** A strong supporting engineer raises the output quality of everyone around them: fewer bugs (fewer fixes), cleaner architecture, faster onboarding. That impact shows up in the team's aggregate even when the individual's own commit-based score is low.
+
+Individual scores remain useful for understanding work distribution and spotting trends, but they should not be read as a complete performance picture when supporting roles are present.
+
+## What Performance does not observe
+
+- **Only merged commits on connected repositories.** If a repository is not connected, its commits are not scored. A contributor who does most of their work in an unconnected repository will show a low score.
+- **Work that never lands as a commit.** Code review depth, incident response, planning, mentorship, pair-programming sessions that never produce a standalone commit, and any engineering contribution outside of merged code are not reflected.
+- **Author-rewriting tools.** Squash-merge policies that discard original authorship, or AI coding assistants that replace the human author, shift credit accordingly. Connect your AI coding tool integrations to retain the underlying authorship.
 
 ## KTLO mode
 
-By default, Navigara shows the full three-bucket breakdown: Grow / Maintenance / Waste. If you prefer a simpler view, you can switch to **Grow / KTLO** mode in **Settings > General**.
+By default, Navigara shows the full three-bucket breakdown: Growth / Maintenance / Fixes. If you prefer a simpler view, you can switch to **Growth / KTLO** mode in **Settings > General**.
 
-KTLO (Keep The Lights On) combines Maintenance and Waste into a single category. This is useful when communicating with stakeholders outside of engineering — instead of explaining three categories, you get a clean split between new value (Grow) and everything else (KTLO).
+KTLO (Keep The Lights On) combines Maintenance and Fixes into a single category. This is useful when communicating with stakeholders outside of engineering — instead of explaining three categories, you get a clean split between new value (Growth) and everything else (KTLO).
 
 | Mode | Categories | Best for |
 |------|-----------|----------|
-| **Grow / Maintenance / Waste** | 3 buckets | Engineering teams that want full visibility into where effort goes |
-| **Grow / KTLO** | 2 buckets | Executive reporting and cross-team communication |
+| **Growth / Maintenance / Fixes** | 3 buckets | Engineering teams that want full visibility into where effort goes |
+| **Growth / KTLO** | 2 buckets | Executive reporting and cross-team communication |
 
 <Note>
 Switching metrics mode only changes how the data is displayed. The underlying analysis stays the same and you can switch back at any time without losing data.
 </Note>
+
+## FAQ
+
+<AccordionGroup>
+<Accordion title="Why did my big commit score low?">
+A large diff doesn't automatically mean a high score. If most of the added lines are structurally similar to existing code (the similarity dampener applies), literally duplicated from elsewhere (copy decay), or don't interact with much surrounding code (low engagement), the base score stays modest. Large mechanical additions — generated bindings, regenerated migrations, bulk renames — typically score low by design.
+</Accordion>
+
+<Accordion title="Why did a one-line change score high?">
+A small change can carry significant weight when context complexity and engagement are both high. Rewriting one line inside a hot function that is called from dozens of places, or correcting an old bug in a high-churn area, both produce scores larger than their line count suggests.
+</Accordion>
+
+<Accordion title="Do documentation changes count?">
+Yes — documentation and comment-only changes are classified as Maintenance and scored mechanically like other changes. They typically carry low context complexity and low engagement, so their contribution is small.
+</Accordion>
+
+<Accordion title="Does reverting a commit score negatively?">
+No. A revert is classified based on intent — reverting a broken feature tends toward Fixes, reverting a merge-timing mistake tends toward Maintenance — and scored like any other change. The original commit's score is not retroactively removed.
+</Accordion>
+</AccordionGroup>
