@@ -14,6 +14,7 @@ A full deployment consists of three infrastructure components:
 1. **Linux VM** — runs the Navigara application (backend, frontend, collector) via Docker Compose
 2. **Managed PostgreSQL** — stores all application data including vector embeddings (requires pgvector extension)
 3. **LLM API endpoint** — Anthropic, OpenAI, or Google Vertex AI API for AI-powered commit analysis
+4. **Navigara license key** — JWT issued by Navigara that unlocks analysis features (see [License Key](#license-key))
 
 ```mermaid
 graph TD
@@ -59,6 +60,14 @@ A managed PostgreSQL instance with the pgvector extension enabled. All major clo
 **PostgreSQL version:** 18 (required for native UUIDv7 support via `uuidv7()`)
 
 **Required extension:** `pgvector` — vector similarity search for knowledge graph analysis
+
+### License Key
+
+A full on-premises deployment requires a license key issued by Navigara. Contact your Navigara account representative with the domain you intend to host Navigara on (e.g. `navigara.yourcompany.com`) to obtain one. Set it as `LICENSE_KEY` in your `.env`.
+
+<Warning>
+  Treat `LICENSE_KEY` as a secret. Store it alongside your other credentials (vault or secret manager) and do not commit it to source control.
+</Warning>
 
 ### LLM API Endpoint
 
@@ -204,7 +213,7 @@ mkdir -p /opt/navigara/deployment/caddy && cd /opt/navigara
 ```yaml
 services:
   backend:
-    image: ${BACKEND_IMAGE:-europe-west1-docker.pkg.dev/navigara-images/public/vision-be:${NAVIGARA_VERSION}}
+    image: ${BACKEND_IMAGE:-europe-docker.pkg.dev/navigara-images/public/vision-be:${NAVIGARA_VERSION}}
     container_name: navigara-backend
     init: true
     env_file:
@@ -220,6 +229,7 @@ services:
       LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-8192}
       MIGRATIONS_PATH: ${MIGRATIONS_PATH:-db/migrations}
       COLLECTOR_API_KEY: ${COLLECTOR_API_KEY:-navigara-collector-key}
+      LICENSE_KEY: ${LICENSE_KEY}
       FRONTEND_URL: https://${DOMAIN}
       PUBLIC_API_URL: https://${DOMAIN}/api
     ports:
@@ -233,7 +243,7 @@ services:
       - navigara-network
 
   collector:
-    image: ${COLLECTOR_IMAGE:-europe-west1-docker.pkg.dev/navigara-images/public/vision-collector:${NAVIGARA_VERSION}}
+    image: ${COLLECTOR_IMAGE:-europe-docker.pkg.dev/navigara-images/public/vision-collector:${NAVIGARA_VERSION}}
     container_name: navigara-collector
     init: true
     env_file:
@@ -257,7 +267,7 @@ services:
       - navigara-network
 
   frontend:
-    image: ${FRONTEND_IMAGE:-europe-west1-docker.pkg.dev/navigara-images/public/vision-fe:${NAVIGARA_VERSION}}
+    image: ${FRONTEND_IMAGE:-europe-docker.pkg.dev/navigara-images/public/vision-fe:${NAVIGARA_VERSION}}
     container_name: navigara-frontend
     env_file:
       - .env
@@ -330,7 +340,7 @@ Create a `.env` file with your configuration (paste the public key from step 3 i
 
 ```bash
 # Version
-NAVIGARA_VERSION=0.9.2
+NAVIGARA_VERSION=0.10.16
 
 # Container images (override to use your own registry)
 # BACKEND_IMAGE=your-registry.example.com/navigara/vision-be:${NAVIGARA_VERSION}
@@ -360,6 +370,9 @@ LLM_API_URL=                       # Custom endpoint URL (optional, for self-hos
 
 # Application
 DOMAIN=navigara.yourcompany.com  # Used by Caddy and to derive FRONTEND_URL / PUBLIC_API_URL
+
+# Navigara License (JWT issued by Navigara, tied to your DOMAIN — see "License Key" section above)
+LICENSE_KEY=<your-license-jwt>
 
 # Admin Root Access
 ADMIN_PUBLIC_KEY=<paste-public-key-from-step-3>
@@ -564,6 +577,7 @@ Database migrations run automatically on startup. Always back up your database b
 
 | Issue | Solution |
 |-------|----------|
+| Analysis or collector features disabled | Verify `LICENSE_KEY` is set and matches your `DOMAIN`. Contact Navigara if your license has expired or needs to be reissued. |
 | Database connection refused | Verify `DATABASE_URL` and that the PostgreSQL instance allows connections from the VM's IP |
 | pgvector extension missing | Run `CREATE EXTENSION IF NOT EXISTS vector;` as a superuser on the database |
 | LLM analysis failing | Verify `LLM_API_KEY` and that the VM can reach the LLM API endpoint |
