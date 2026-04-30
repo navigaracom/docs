@@ -367,9 +367,21 @@ ADMIN_PUBLIC_KEY=<paste-public-key-from-step-3>
 # Authentication (enable password auth if not using OAuth/SSO)
 # ENABLE_PASSWORD_AUTH=true
 
+# Google OAuth (uncomment to enable Google sign-in)
+# GOOGLE_CLIENT_ID=<your-google-oauth-client-id>
+# GOOGLE_CLIENT_SECRET=<your-google-oauth-client-secret>
+
+# Microsoft OAuth (uncomment to enable Microsoft / Entra ID sign-in)
+# MICROSOFT_CLIENT_ID=<your-microsoft-oauth-client-id>
+# MICROSOFT_CLIENT_SECRET=<your-microsoft-oauth-client-secret>
+
 # Collector
 COLLECTOR_API_KEY=<generate-a-random-key>
 ```
+
+<Warning>
+  At least one authentication method must be configured for users to log in to Navigara. Enable one or more of: password auth (`ENABLE_PASSWORD_AUTH=true`), Google OAuth (`GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET`), or Microsoft OAuth (`MICROSOFT_CLIENT_ID` + `MICROSOFT_CLIENT_SECRET`). Without at least one of these, only the root admin can access the instance via the impersonation link in [Product Setup](#7-product-setup).
+</Warning>
 
 ### 5. Configure PostgreSQL
 
