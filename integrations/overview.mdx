@@ -253,9 +253,20 @@ The IAM principal backing the API key needs `bedrock:InvokeModel` on the target 
 
 ### Azure AI Foundry
 
-Connect via Azure AI Foundry's OpenAI-compatible endpoint. Supports Azure-hosted OpenAI models and partner models (including Anthropic Claude on Foundry).
+Foundry exposes Claude under the Anthropic Messages API and OpenAI / GPT models under Azure OpenAI. Use the matching provider for each model family.
 
-**Configuration**
+**Anthropic Claude on Foundry**
+
+```bash
+LLM_PROVIDER=anthropic
+LLM_MODEL=claude-sonnet-4-6
+LLM_API_KEY=<foundry-api-key>
+LLM_API_URL=https://<your-resource>.services.ai.azure.com/anthropic
+```
+
+The Anthropic SDK appends `/v1/messages` to `LLM_API_URL` — set the URL to the `…/anthropic` base, **not** to the full `…/anthropic/v1/messages`.
+
+**OpenAI / GPT on Foundry**
 
 ```bash
 LLM_PROVIDER=openai
@@ -264,7 +275,21 @@ LLM_API_KEY=<azure-api-key>
 LLM_API_URL=https://<your-resource>.openai.azure.com/openai/responses?api-version=2025-04-01-preview
 ```
 
-Navigara detects `.openai.azure.com` URLs and switches to Azure authentication automatically. Create a deployment in Azure AI Foundry and use the deployment name as `LLM_MODEL`.
+Navigara detects `.openai.azure.com` and `.cognitiveservices.azure.com` URLs and switches to Azure authentication automatically. Create a deployment in Azure AI Foundry and use the deployment name as `LLM_MODEL`.
+
+### Custom API gateways
+
+If your organization fronts LLM providers behind an API management layer (Azure API Management, AWS API Gateway, internal proxies), use `LLM_PROVIDER=anthropic` for any Anthropic-Messages-API endpoint and `LLM_PROVIDER=openai` for any OpenAI-compatible endpoint. The model name is opaque — gateways may expose Claude under custom identifiers.
+
+```bash
+# Example: Anthropic Messages API behind a custom gateway
+LLM_PROVIDER=anthropic
+LLM_API_URL=https://api.example.com/foundry/claude-sonnet-4-6
+LLM_API_KEY=<gateway-key>
+LLM_MODEL=claude-sonnet-4-6
+```
+
+Do not include `/v1` in `LLM_API_URL` — the Anthropic SDK appends `/v1/messages` itself. A URL ending in `/v1` produces `/v1/v1/messages` and the gateway will return 404.
 
 ### Troubleshooting
 

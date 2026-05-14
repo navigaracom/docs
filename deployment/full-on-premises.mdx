@@ -87,9 +87,12 @@ The endpoint must be reachable from the VM. For air-gapped environments, a local
     LLM_PROVIDER=anthropic
     LLM_MODEL=claude-sonnet-4-20250514    # or claude-haiku-4-5-20251001
     LLM_API_KEY=<your-anthropic-api-key>
+    LLM_API_URL=https://api.anthropic.com  # required; change for Foundry / gateway endpoints
     ```
 
     Claude Sonnet is recommended for the best analysis quality. Claude Haiku is a cost-effective alternative with faster throughput.
+
+    For Azure AI Foundry, internal API gateways, or other Anthropic-Messages-API-compatible endpoints, set `LLM_API_URL` to that endpoint instead. Do **not** include `/v1` in the URL — the SDK appends `/v1/messages` itself.
   </Tab>
   <Tab title="Google Vertex AI">
     Vertex AI uses GCP service account authentication instead of a static API key.
@@ -340,7 +343,7 @@ Create a `.env` file with your configuration (paste the public key from step 3 i
 
 ```bash
 # Version
-NAVIGARA_VERSION=0.10.16
+NAVIGARA_VERSION=0.11.1
 
 # Container images (override to use your own registry)
 # BACKEND_IMAGE=your-registry.example.com/navigara/vision-be:${NAVIGARA_VERSION}
@@ -351,10 +354,10 @@ NAVIGARA_VERSION=0.10.16
 DATABASE_URL=postgresql://navigara:<password>@<postgres-host>:5432/navigara?sslmode=require
 
 # LLM Configuration — see "LLM API Endpoint" section above for all providers
-LLM_PROVIDER=anthropic             # anthropic (recommended) | openai | genai
-LLM_MODEL=claude-sonnet-4-20250514 # Model name for your provider
-LLM_API_KEY=<your-api-key>        # API key for the LLM provider
-LLM_API_URL=                       # Custom endpoint URL (optional, for self-hosted models)
+LLM_PROVIDER=anthropic                 # anthropic (recommended) | openai | genai
+LLM_MODEL=claude-sonnet-4-20250514     # Model name for your provider
+LLM_API_KEY=<your-api-key>            # API key for the LLM provider
+LLM_API_URL=https://api.anthropic.com # Required for anthropic/openai. For Azure Foundry, internal gateways, or self-hosted, point this at your endpoint.
 
 # OpenAI (uncomment if using openai provider)
 # LLM_PROVIDER=openai
