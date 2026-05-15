@@ -192,7 +192,7 @@ Create a `.env` file:
 
 ```bash
 # Version
-NAVIGARA_VERSION=0.10.16
+NAVIGARA_VERSION=0.11.1
 
 # Collector image (override to use your own registry)
 # COLLECTOR_IMAGE=your-registry.example.com/navigara/vision-collector:${NAVIGARA_VERSION}
@@ -204,10 +204,10 @@ COLLECTOR_API_KEY=<your-collector-api-token>
 # COLLECTOR_ID=collector-1
 
 # LLM Configuration — see "LLM Configuration" section below for all providers
-LLM_PROVIDER=anthropic             # anthropic (recommended) | openai | genai
-LLM_MODEL=claude-sonnet-4-20250514 # Model name for your provider
-LLM_API_KEY=<your-llm-api-key>    # API key for the LLM provider
-LLM_API_URL=                       # Custom endpoint URL (optional, for self-hosted models)
+LLM_PROVIDER=anthropic                 # anthropic (recommended) | openai | genai
+LLM_MODEL=claude-sonnet-4-20250514     # Model name for your provider
+LLM_API_KEY=<your-llm-api-key>        # API key for the LLM provider
+LLM_API_URL=https://api.anthropic.com # Required for anthropic/openai. For Azure Foundry, internal gateways, or self-hosted, point this at your endpoint.
 
 # OpenAI (uncomment if using openai provider)
 # LLM_PROVIDER=openai
@@ -245,9 +245,12 @@ Navigara requires an LLM API endpoint for AI-powered commit analysis. Supported 
     LLM_PROVIDER=anthropic
     LLM_MODEL=claude-sonnet-4-20250514    # or claude-haiku-4-5-20251001
     LLM_API_KEY=<your-anthropic-api-key>
+    LLM_API_URL=https://api.anthropic.com  # required; change for Foundry / gateway endpoints
     ```
 
     Claude Sonnet is recommended for the best analysis quality. Claude Haiku is a cost-effective alternative with faster throughput.
+
+    For Azure AI Foundry, internal API gateways, or other Anthropic-Messages-API-compatible endpoints, set `LLM_API_URL` to that endpoint instead. Do **not** include `/v1` in the URL — the SDK appends `/v1/messages` itself.
   </Tab>
   <Tab title="Google Vertex AI">
     Vertex AI uses GCP service account authentication instead of a static API key.
@@ -332,7 +335,7 @@ Once the collector is running, add repositories through the Navigara dashboard:
 | `LLM_PROVIDER` | `anthropic` | LLM provider: `anthropic`, `openai`, or `genai` |
 | `LLM_MODEL` | `claude-sonnet-4-20250514` | Model name |
 | `LLM_API_KEY` | — | API key for the LLM provider |
-| `LLM_API_URL` | — | Custom LLM endpoint (for self-hosted models) |
+| `LLM_API_URL` | — | LLM endpoint URL. **Required** for `anthropic` (e.g. `https://api.anthropic.com`) and `openai`. Also used for Azure Foundry, internal gateways, and self-hosted models. |
 | `GOOGLE_PROJECT` | — | GCP project ID (required for `genai` provider) |
 | `GOOGLE_LOCATION` | `global` | GCP location (for `genai` provider) |
 | `GITHUB_TOKEN` | — | GitHub PAT for repository access |
